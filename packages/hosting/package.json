@@ -1,6 +1,6 @@
 {
   "name": "@botas/hosting",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "main": "dist/index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -10,6 +10,6 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "@botas/core": "^1.0.0"
+    "@botas/core": "^0.0.1"
   }
 }
