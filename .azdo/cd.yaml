@@ -35,7 +35,7 @@ steps:
   inputs:
     command: custom
     publishRegistry: useFeed
-    customCommand: publish --workspaces
+    customCommand: publish --workspaces --registry https://pkgs.dev.azure.com/rmpablos/botas/_packaging/botas-nightly/npm/registry
     publishFeed : https://pkgs.dev.azure.com/rmpablos/botas/_packaging/botas-nightly/npm/registry
   
   displayName: 'npm publish'
