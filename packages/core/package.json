@@ -1,6 +1,6 @@
 {
-  "name": "@botas/core",
-  "version": "0.0.1",
+  "name": "@rido-min/core",
+  "version": "0.0.11",
   "main": "dist/index.js",
   "devDependencies": {},
   "keywords": [],

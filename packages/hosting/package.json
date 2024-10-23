@@ -1,13 +1,13 @@
 {
-  "name": "@botas/hosting",
-  "version": "0.0.1",
+  "name": "@rido-min/hosting",
+  "version": "0.0.11",
   "main": "dist/index.js",
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "@botas/core": "^0.0.1"
+    "@rido-min/core": "^0.0.11"
   },
   "files": [
     "README.md",

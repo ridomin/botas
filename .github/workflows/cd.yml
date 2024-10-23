@@ -8,21 +8,24 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Set up Node.js latest
-        uses: actions/setup-node@v2
+        uses: actions/setup-node@v4
         with:
           node-version: '22.x'
           registry-url: 'https://npm.pkg.github.com'
-          scope: '@botas'
+          scope: '@rido-min'
 
       - run: npm ci
       - run: npm run build
-      - run: npm publish --workspaces
+      - run: npm publish --workspaces  --registry https://npm.pkg.github.com/rido-min
         env:
             NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
