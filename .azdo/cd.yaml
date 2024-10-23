@@ -33,8 +33,10 @@ steps:
 
 - task: Npm@1
   inputs:
-    command: publish --workspaces
+    command: custom
     publishRegistry: useFeed
+    customCommand: publish --workspaces
     publishFeed : https://pkgs.dev.azure.com/rmpablos/botas/_packaging/botas-nightly/npm/registry
+  
   displayName: 'npm publish'
 
