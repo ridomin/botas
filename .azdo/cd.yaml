@@ -1,10 +1,4 @@
-# Node.js
-# Build a general Node.js project with npm.
-# Add steps that analyze code, save build artifacts, deploy, and more:
-# https://docs.microsoft.com/azure/devops/pipelines/languages/javascript
-
-trigger:
-- master
+trigger: none
 
 pool:
   vmImage: ubuntu-latest
@@ -15,30 +9,27 @@ steps:
     version: '20.x'
   displayName: 'Install Node.js'
 
-- script: echo "//pkgs.dev.azure.com/rmpablos/botas/_packaging/botas-nightly/npm/registry" > .npmrc
-  displayName: 'Create .npmrc'
-
 - task: npmAuthenticate@0
   inputs:
     workingFile: .npmrc
 
-- script: cat .npmrc
-  displayName: 'Show .npmrc'
-
-- script: npm install
+- task: Npm@1
+  inputs:
+    command: install
+    customRegistry: useFeed
+    customFeed : botas/botas-upstream
+    verbose: true
   displayName: 'npm install'
 
 - script: npm run build
   displayName: 'npm build'
 
-- script: npm publish --workspaces  --registry https://pkgs.dev.azure.com/rmpablos/botas/_packaging/botas-nightly/npm/registry
-  displayName: 'push to azdo'
-
-# - task: Npm@1
-#   inputs:
-#     command: custom
-#     publishRegistry: useFeed
-#     customCommand: publish --workspaces --registry https://pkgs.dev.azure.com/rmpablos/botas/_packaging/botas-nightly/npm/registry
-#     publishFeed : https://pkgs.dev.azure.com/rmpablos/botas/_packaging/botas-nightly/npm/registry
-#   displayName: 'npm publish'
+- task: Npm@1
+  inputs:
+    command: custom
+    customCommand: publish --workspaces
+    publishRegistry: useFeed
+    publishFeed : botas/botas-dev
+    verbose: true
+  displayName: 'npm publish'
 
