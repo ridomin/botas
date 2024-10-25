@@ -7,7 +7,7 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "@rido-min/core": "^0.0.14"
+    "@rido-min/core": "*"
   },
   "files": [
     "README.md",
