@@ -1,5 +1,5 @@
-import {v4} from 'uuid';
+import { v4 } from 'uuid'
 
-export function getRandomGuid() {
-    return v4();
+export function getRandomGuid (): string {
+  return v4()
 }

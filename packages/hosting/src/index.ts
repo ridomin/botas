@@ -1,6 +1,6 @@
-import {getRandomGuid} from '@rido-min/core'
+import { getRandomGuid } from '@rido-min/core'
 
-export function start( ) {
-    const id = getRandomGuid();
-    console.log('Starting hosting...', id);
+export function start (): void {
+  const id = getRandomGuid()
+  console.log('Starting hosting...', id)
 }
