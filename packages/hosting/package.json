@@ -6,9 +6,6 @@
   "author": "",
   "license": "ISC",
   "description": "",
-  "dependencies": {
-    "@rido-min/core": "^0.0.14"
-  },
   "files": [
     "README.md",
     "dist/*"
