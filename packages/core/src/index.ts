@@ -477,19 +477,19 @@ export interface ConversationReference {
     /**
      * Bot participating in this conversation
      */
-    bot: ChannelAccount;
+    bot: ChannelAccount | undefined;
     /**
      * Conversation reference
      */
-    conversation: ConversationAccount;
+    conversation: ConversationAccount | undefined;
     /**
      * Channel ID
      */
-    channelId: string;
+    channelId: string | undefined;
     /**
      * Service endpoint where operations concerning the referenced conversation may be performed
      */
-    serviceUrl: string;
+    serviceUrl: string | undefined;
 }
 
 const conversationReference = z.object({
