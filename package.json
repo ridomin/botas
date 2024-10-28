@@ -9,7 +9,7 @@
     "build": "tsc --build  tsconfig.build.json",
     "lint": "eslint",
     "pretest": "npm run build",
-    "test": "node --test packages/*/test/*.spec.mjs"
+    "test": "node --test packages/*/test/*.test.js"
   },
   "author": "rido",
   "license": "MIT",
