@@ -14,26 +14,31 @@ steps:
   displayName: 'Install Node.js'
 
 - script: |
-    echo "registry=https://pkgs.dev.azure.com/rmpablos/botas/_packaging/botas-dev/npm/registry/" > .npmrc
+    echo "registry=https://pkgs.dev.azure.com/rmpablos/botas/_packaging/botas-upstream/npm/registry/" > .npmrc
     echo "always-auth=true" >> .npmrc
     echo "@rido-min:registry=https://pkgs.dev.azure.com/rmpablos/botas/_packaging/botas-dev/npm/registry/" >> .npmrc
     echo "always-auth=true" >> .npmrc
+    cat .npmrc
   displayName: 'Create .npmrc for azddevops' 
 
 - task: npmAuthenticate@0
   inputs:
     workingFile: .npmrc
 
+- script: npm install
+  displayName: 'root npm install'
+
 - task: Npm@1
   inputs:
-    command: install
+    command: custom
     customRegistry: useFeed
     customFeed : botas/botas-upstream
+    customCommand: install --workspaces
     verbose: true
-  displayName: 'npm install'
+  displayName: 'npm install workspaces'
 
-- script: npm run build
-  displayName: 'npm build'
+- script: npm run test
+  displayName: 'npm test'
 
 - script: node setVersion.js
   displayName: 'node setVersion.js'
