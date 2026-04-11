@@ -1,0 +1,30 @@
+{
+  "name": "botas",
+  "version": "0.1.0",
+  "description": "Lightweight library for building Microsoft Bot Framework bots - Node.js/TypeScript",
+  "type": "module",
+  "license": "MIT",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "engines": {
+    "node": ">=20"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "clean": "npx rimraf ./dist",
+    "build": "tsc -p tsconfig.json",
+    "test": "node --import tsx --test src/**/*.spec.ts"
+  },
+  "dependencies": {
+    "@azure/msal-node": "^2.16.2",
+    "axios": "^1.12.0",
+    "debug": "^4.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "jwks-rsa": "^3.2.0"
+  }
+}
