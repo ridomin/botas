@@ -10,6 +10,12 @@ public class ConversationAccount()
     [JsonPropertyName("name")]
     public string? Name { get; set; }
 
+    [JsonPropertyName("aadObjectId")]
+    public string? AadObjectId { get; set; }
+
+    [JsonPropertyName("role")]
+    public string? Role { get; set; }
+
     [JsonExtensionData]
     public ExtendedPropertiesDictionary Properties { get; set; } = [];
 }

@@ -1,12 +1,12 @@
 # Bot Spec
 
-**Purpose**: Enable LLM-driven implementation in different programming languages  
-**Status**: Draft  
+**Purpose**: Enable LLM-driven implementation in different programming languages
+**Status**: Draft
 
 
 ## Overview
 
-`botas` is a lightweight library for building Microsoft Bot Framework bots with minimal overhead. This specification documents the library's design, APIs, and behaviors to enable accurate implementation to other programming languages like Python, TypeScript/Node.js, Go, Java, or Rust.
+`botas` is a lightweight library for building Microsoft Bot Framework bots with minimal overhead. This specification documents the library's design, APIs, and behaviors to enable accurate implementation to other programming languages like Python, Go, Java, or Rust.
 
 ---
 
@@ -30,28 +30,51 @@ The library implements the Microsoft Bot Framework REST API protocol:
 | `conversationUpdate` | Members added/removed from conversation |
 | `installationUpdate` | Bot installed/uninstalled (Teams-specific) |
 | `invoke` | Special request requiring synchronous response |
+
 ---
 
-## Package Structure in dotnet
+## Package Structure
 
-start with https://github.com/agnte/Rido.BFLite/tree/main/src/Rido.BFLite.Core
+### dotnet
 
 ```text
-botas/dotnet/src
-├── Botas.Core/           # Core bot functionality
-│   ├── BotApplication.cs       # Main bot class
-│   ├── ConversationClient.cs   # HTTP client for sending activities
-│   ├── UserTokenClient.cs      # OAuth token management
-│   ├── Schema/                 # Activity models
-│   │   ├── Activity.cs
-│   │   ├── ChannelData.cs
-│   │   ├── Conversation.cs
-│   │   └── ConversationAccount.cs
-│   └── Hosting/                # ASP.NET Core integration
-│       ├── AppBuilderExtensions.cs
-│       ├── BotApplicationConfigurationExtensions.cs
-│       ├── BotAuthenticationHandler.cs
-│       └── JwtExtensions.cs
+dotnet/src/Botas/
+├── BotApplication.cs           # Main bot class + BotHanlderException + ITurnMiddleWare
+├── ConversationClient.cs       # HTTP client for sending activities
+├── UserTokenClient.cs          # OAuth token operations
+├── Schema/
+│   ├── Activity.cs             # Activity model + CreateReplyActivity helper
+│   ├── ChannelData.cs          # TeamsChannelData and related types
+│   ├── ConversationAccount.cs  # ConversationAccount model
+│   └── Conversation.cs         # Conversation model
+└── Hosting/                    # ASP.NET Core integration
+    ├── AppBuilderExtensions.cs
+    ├── BotApplicationConfigurationExtensions.cs
+    ├── BotAuthenticationHandler.cs
+    └── JwtExtensions.cs
+```
+
+### node
+
+```text
+node/packages/botas/src/
+├── app/
+│   ├── bot-application.ts          # BotApplication class + BotHandlerException
+│   └── bot-application-options.ts  # Options type
+├── auth/
+│   ├── bot-auth-middleware.ts       # botAuthExpress(), botAuthHono(), validateBotToken()
+│   └── token-manager.ts            # TokenManager (client creds, managed identity, federated)
+├── clients/
+│   ├── bot-http-client.ts          # Low-level authenticated HTTP client
+│   ├── conversation-client.ts      # ConversationClient
+│   └── user-token-client.ts        # UserTokenClient
+├── logging/
+│   └── logger.ts                   # debug-based logger
+├── middleware/
+│   └── i-turn-middleware.ts        # ITurnMiddleware interface
+└── schema/
+    ├── activity.ts                 # Activity, ChannelAccount, ConversationAccount, createReplyActivity()
+    └── channel-data.ts             # TeamsChannelData and related types
 ```
 
 ---
@@ -93,12 +116,10 @@ A developer sends a proactive message to a user outside of a direct conversation
 
 The bot responds when a user adds or removes a reaction to a message.
 
-**Why this priority**: Reactions enable richer interaction patterns.
-
 **Acceptance Scenarios**:
 
-1. **Given** a message in conversation, **When** user adds a thumbs-up reaction, **Then** `OnMessageReaction` handler is invoked with reaction details
-2. **Given** a message in conversation, **When** user removes a reaction, **Then** handler receives `ReactionsRemoved` list
+1. **Given** a message in conversation, **When** user adds a thumbs-up reaction, **Then** the registered handler for `messageReaction` is invoked
+2. **Given** a message in conversation, **When** user removes a reaction, **Then** handler receives the activity
 
 ---
 
@@ -108,8 +129,8 @@ The bot is notified when members join or leave a conversation.
 
 **Acceptance Scenarios**:
 
-1. **Given** a group conversation, **When** a new member joins, **Then** `OnConversationUpdate` handler receives `MembersAdded`
-2. **Given** a group conversation, **When** a member leaves, **Then** handler receives `MembersRemoved`
+1. **Given** a group conversation, **When** a new member joins, **Then** the `conversationUpdate` handler receives the activity
+2. **Given** a group conversation, **When** a member leaves, **Then** handler receives the activity
 
 ---
 
@@ -119,8 +140,8 @@ The bot handles Teams-specific installation/uninstallation events.
 
 **Acceptance Scenarios**:
 
-1. **Given** bot is installed in Teams, **When** installation completes, **Then** `OnInstallationUpdate` handler is invoked with `Action = "add"`
-2. **Given** bot is uninstalled, **When** uninstallation completes, **Then** handler receives `Action = "remove"`
+1. **Given** bot is installed in Teams, **When** installation completes, **Then** `installationUpdate` handler is invoked
+2. **Given** bot is uninstalled, **When** uninstallation completes, **Then** handler receives the activity
 
 ---
 
@@ -151,7 +172,7 @@ System MUST serialize/deserialize activities using JSON with:
 System MUST expose a POST endpoint (default: `/api/messages`) that:
 
 - Accepts Activity JSON in request body
-- Returns activity ID on success
+- Returns `{}` on success
 - Requires JWT authentication
 
 ### FR-003: JWT Authentication
@@ -174,26 +195,41 @@ System MUST authenticate outbound requests using:
 
 System MUST provide a method to create reply activities that:
 
-- Copies `Conversation`, `ServiceUrl`, `ChannelId` from original
-- Swaps `From` and `Recipient`
-- Sets `ReplyToId` to original activity ID
+- Copies `conversation`, `serviceUrl`, `channelId` from original
+- Swaps `from` and `recipient`
+- Sets `replyToId` to original activity ID
 
 ### FR-006: Send Activity
 
 System MUST send activities via HTTP POST to:
 
-- URL: `{ServiceUrl}v3/conversations/{ConversationId}/activities/`
+- URL: `{serviceUrl}v3/conversations/{conversationId}/activities`
 - Content-Type: `application/json`
 - Authorization: Bearer token
 
-### FR-007: Handler Invocation
+Dotnet signature:
+```csharp
+Task<string> SendActivityAsync(Activity activity, CancellationToken cancellationToken = default)
+```
 
-System MUST invoke appropriate handlers based on activity type:
+Node signature:
+```typescript
+sendActivityAsync(serviceUrl: string, conversationId: string, activity: Partial<Activity>): Promise<ResourceResponse | undefined>
+```
 
-- `message` → `OnMessage`
-- `messageReaction` → `OnMessageReaction`
-- `conversationUpdate` → `OnConversationUpdate`
-- `installationUpdate` → `OnInstallationUpdate` (Teams only)
+> Note: dotnet takes a fully-populated `Activity` (serviceUrl/conversationId embedded). Node takes them as explicit parameters for proactive messaging ergonomics.
+
+### FR-007: Handler Dispatch
+
+System MUST dispatch incoming activities to registered handlers by type string:
+
+- `"message"` → message handler
+- `"conversationUpdate"` → conversationUpdate handler
+- `"messageReaction"` → messageReaction handler
+- `"installationUpdate"` → installationUpdate handler
+- Any type string → its registered handler (generic dispatch)
+
+If no handler is registered for an activity type, the activity MUST be silently ignored.
 
 ### FR-008: Middleware Pipeline
 
@@ -208,16 +244,15 @@ System MUST support middleware that:
 
 For Teams channel, System MUST parse additional data:
 
-- `TeamsChannelData.Settings.SelectedChannel.Id`
-- `TeamsChannelData.Tenant.Id`
-- `TeamsChannelData.Team.Id`
-- `TeamsConversationAccount.UserPrincipalName`
+- `TeamsChannelData.settings.selectedChannel.id`
+- `TeamsChannelData.tenant.id`
+- `TeamsChannelData.team.id`
 
 ### FR-010: Error Handling
 
 System MUST wrap handler exceptions in `BotHandlerException` with:
 
-- Original exception as inner exception
+- Original exception as inner exception / cause
 - Reference to the activity that caused the error
 
 ---
@@ -226,168 +261,167 @@ System MUST wrap handler exceptions in `BotHandlerException` with:
 
 ### Activity
 
-The core message/event model exchanged with Bot Framework.
+The core message/event model exchanged with Bot Framework. Keep fields minimal — add only what is required by a concrete feature.
 
 ```text
 Activity
-├── type: string              # "message", "messageReaction", etc.
+├── type: string              # "message", "conversationUpdate", etc.
 ├── id: string?               # Unique identifier
-├── serviceUrl: string?       # Callback URL for this conversation
-├── channelId: string?        # "msteams", "webchat", "slack", etc.
+├── serviceUrl: string        # Callback URL for this conversation
+├── channelId: string         # "msteams", "webchat", "slack", etc.
 ├── text: string?             # Message text content
 ├── replyToId: string?        # ID of message being replied to
-├── from: ConversationAccount?    # Sender information
-├── recipient: ConversationAccount?  # Recipient information
-├── conversation: Conversation?   # Conversation context
-├── channelData: ChannelData?     # Channel-specific data
-├── entities: JsonArray?          # Mentions, card actions, etc.
-└── [extensionData]: Dictionary   # Unknown properties preserved
+├── from: ChannelAccount      # Sender information
+├── recipient: ChannelAccount # Recipient information
+├── conversation: ConversationAccount  # Conversation context
+├── channelData: unknown?     # Channel-specific data
+├── entities: unknown[]?      # Mentions, card actions, etc.
+└── [extensionData]: Dictionary  # Unknown properties preserved
 ```
 
-### ConversationAccount
+### ChannelAccount
 
-Represents a user or bot in a conversation.
+Represents a user or bot account.
 
 ```text
-ConversationAccount
-├── id: string?               # Unique identifier
+ChannelAccount
+├── id: string                # Unique identifier
 ├── name: string?             # Display name
 ├── aadObjectId: string?      # Azure AD object ID
 ├── role: string?             # "user" or "bot"
 └── [extensionData]: Dictionary
 ```
 
-### Conversation
+### ConversationAccount
 
-Represents the conversation context.
+Represents a conversation.
 
 ```text
-Conversation
-├── id: string?               # Conversation identifier
+ConversationAccount
+├── id: string                # Conversation identifier
+├── name: string?             # Display name
+├── aadObjectId: string?      # Azure AD object ID
+├── role: string?             # Role
 └── [extensionData]: Dictionary
 ```
 
-### ChannelData
-
-Base class for channel-specific data (extended by TeamsChannelData).
-
-```text
-ChannelData
-├── clientActivityId: string?
-└── [extensionData]: Dictionary
-```
-
-### TeamsChannelData (extends ChannelData)
+### TeamsChannelData
 
 Teams-specific conversation metadata.
 
 ```text
 TeamsChannelData
-├── tenant: TeamsChannelDataTenant?
-│   └── id: string?
-├── team: Team?
-│   ├── id: string?
-│   └── name: string?
-├── channel: TeamsChannel?
-│   ├── id: string?
-│   └── name: string?
-├── settings: TeamsChannelDataSettings?
-│   └── selectedChannel: TeamsChannel?
-└── [inherited from ChannelData]
-```
-
-### TeamsConversationAccount (extends ConversationAccount)
-
-Teams user with additional properties.
-
-```text
-TeamsConversationAccount
-├── userPrincipalName: string?  # UPN (email)
-├── email: string?
-└── [inherited from ConversationAccount]
+├── tenant: { id: string? }?
+├── team: { id: string?, name: string? }?
+├── channel: { id: string?, name: string? }?
+└── settings: { selectedChannel: { id: string?, name: string? }? }?
 ```
 
 ---
 
 ## API Surface
 
-### BotApplication Class
+### BotApplication (dotnet)
 
-```text
-class BotApplication:
-    # Properties
-    UserTokenClient: UserTokenClient          # OAuth token management
-    OnActivity: Func<Activity, CancellationToken, Task>?  # Low-level activity callback
-        # Note: Typically set internally by TeamsBotApplication
-        # Users normally interact with typed handlers (OnMessage, etc.)
+```csharp
+public class BotApplication
+{
+    // Single callback; set by application logic
+    public Func<Activity, CancellationToken, Task>? OnActivity { get; set; }
 
-    # Methods
-    ProcessAsync(httpContext, cancellationToken) -> Activity
-        # Parse activity from request body
-        # Run middleware pipeline
-        # Invoke OnActivity callback
-        # Return processed activity
+    public UserTokenClient UserTokenClient { get; }
 
-    SendActivityAsync(activity, cancellationToken) -> string
-        # Send activity to Bot Framework
-        # Return activity ID from response
+    // ASP.NET Core integration — reads body, runs pipeline, writes response
+    public Task<Activity> ProcessAsync(HttpContext httpContext, CancellationToken cancellationToken = default)
 
-    Use(middleware) -> ITurnMiddleware
-        # Register middleware component
-        # Return middleware for chaining
+    public Task<string> SendActivityAsync(Activity activity, CancellationToken cancellationToken = default)
+
+    public ITurnMiddleWare Use(ITurnMiddleWare middleware)
+}
 ```
 
-### TeamsBotApplication Class (extends BotApplication)
+### BotApplication (node)
 
-```text
-class TeamsBotApplication extends BotApplication:
-    # Handler Properties
-    OnMessage: MessageHandler?              # Message received
-    OnMessageReaction: MessageReactionHandler?  # Reaction added/removed
-    OnInstallationUpdate: InstallationUpdateHandler?  # Bot installed/removed
-    OnConversationUpdate: ConversationUpdateHandler?  # Members changed
+```typescript
+class BotApplication {
+    readonly conversationClient: ConversationClient
+    readonly userTokenClient: UserTokenClient
 
-    # Constructor
-    constructor(config, logger, serviceKey="AzureAd"):
-        # Set up OnActivity to dispatch to appropriate handlers
-        # based on activity.Type
+    // Register handler for an activity type (replaces previous for same type)
+    on(type: string, handler: ActivityHandler): this
+
+    // Register middleware
+    use(middleware: ITurnMiddleware): this
+
+    // For Express / Node.js http.Server
+    processAsync(req: IncomingMessage, res: ServerResponse): Promise<void>
+
+    // For Hono and other response-owning frameworks
+    processBody(body: string): Promise<void>
+
+    // Proactive send
+    sendActivityAsync(serviceUrl: string, conversationId: string, activity: Partial<Activity>): Promise<ResourceResponse | undefined>
+}
 ```
 
-### Context Class
-
-```text
-class Context:
-    # Properties
-    BotApplication: TeamsBotApplication     # Reference to bot
-    Activity: TeamsActivity                 # Current activity
-
-    # Methods
-    SendActivityAsync(text, cancellationToken) -> string
-        # Create reply activity with text
-        # Send via BotApplication
-```
-
-### Handler Delegate Types
-
-```text
-delegate MessageHandler(context: Context, cancellationToken) -> Task
-delegate MessageReactionHandler(args: MessageReactionArgs, context: Context, cancellationToken) -> Task
-delegate InstallationUpdateHandler(args: InstallationUpdateArgs, context: Context, cancellationToken) -> Task
-delegate ConversationUpdateHandler(args: ConversationUpdateArgs, context: Context, cancellationToken) -> Task
-```
-
-### ITurnMiddleware Interface
+### ITurnMiddleware
 
 ```text
 interface ITurnMiddleware:
-    OnTurnAsync(botApplication, activity, next, cancellationToken) -> Task
+    onTurnAsync(botApplication, activity, next) -> Task/Promise<void>
+```
+
+### createReplyActivity (node) / Activity.CreateReplyActivity (dotnet)
+
+Standalone helper that constructs a reply activity:
+
+```typescript
+// node
+function createReplyActivity(activity: Activity, text?: string): Partial<Activity>
+```
+
+```csharp
+// dotnet — instance method on Activity
+public Activity CreateReplyActivity(string text)
+```
+
+### BotHandlerException
+
+Wraps an exception thrown inside a handler:
+
+```typescript
+// node
+class BotHandlerException extends Error {
+    cause: unknown
+    activity: Activity
+}
+```
+
+```csharp
+// dotnet (note: typo in source — "Hanlde" not "Handle")
+class BotHanlderException : Exception {
+    Activity Activity { get; }
+}
 ```
 
 ---
 
-## Application Setup
+## Language-Specific Intentional Differences
 
-The bot application requires several components to be wired together. The implementation approach varies by language/platform - use whatever pattern is idiomatic (factory functions, constructors, DI containers, or simple instantiation).
+| Concern | dotnet | node |
+|---------|--------|------|
+| Web framework | Always ASP.NET Core; DI-wired | Framework-agnostic; adapter per framework |
+| Handler registration | Single `OnActivity` callback | Per-type `on(type, handler)` Map |
+| HTTP integration | `ProcessAsync(HttpContext)` | `processAsync(req, res)` or `processBody(body)` |
+| Auth middleware | ASP.NET authentication scheme | `botAuthExpress()` / `botAuthHono()` factory |
+| SendActivityAsync args | Single `Activity` object | `(serviceUrl, conversationId, activity)` |
+| Exception class name | `BotHanlderException` (typo kept) | `BotHandlerException` (correct spelling) |
+
+These differences are intentional and should be preserved per language when porting.
+
+---
+
+## Application Setup
 
 ### Required Components
 
@@ -396,40 +430,17 @@ Bot Application Setup:
     1. Create BotApplication instance
     2. Configure authentication (client credentials for outbound, JWT validation for inbound)
     3. Set up HTTP endpoint for receiving activities
-    4. Wire ConversationClient for sending activities
-    5. Register activity handlers
-
-Components to wire:
-    - BotApplication: Main entry point
-    - ConversationClient: HTTP client for Bot Framework API
-    - UserTokenClient: OAuth token management (optional, for user auth flows)
-    - Authentication: JWT validation + token acquisition
-```
-
-### HTTP Endpoint Setup
-
-```text
-# Bot must expose POST endpoint (default: /api/messages)
-# Endpoint must:
-#   - Accept JSON body (Activity)
-#   - Validate JWT token from Authorization header
-#   - Return activity ID on success
-#   - Return 401 for invalid/missing tokens
+    4. Register activity handlers
 ```
 
 ### Configuration
 
-Configuration can be provided via environment variables, config files, or constructor parameters:
+Credentials are read from environment variables:
 
 ```text
-Required settings:
-    ClientId: "bot-app-id"           # Azure AD application ID
-    ClientSecret: "bot-app-secret"   # Azure AD client secret
-    TenantId: "tenant-id"            # Azure AD tenant (or "common")
-    
-Optional settings:
-    ListenUrl: "https://localhost:5001"
-    EndpointPath: "/api/messages"
+CLIENT_ID      — Azure AD application (bot) ID
+CLIENT_SECRET  — Azure AD client secret
+TENANT_ID      — Azure AD tenant ID (or "common")
 ```
 
 ---
@@ -450,7 +461,7 @@ Translated implementation MUST validate incoming JWT tokens and authenticate out
 
 ### SC-004: Idiomatic Code
 
-Translated implementation SHOULD follow target language idioms and conventions (e.g., Python naming, Go interfaces, TypeScript types).
+Translated implementation SHOULD follow target language idioms and conventions.
 
 ### SC-005: Minimal Dependencies
 
@@ -458,165 +469,79 @@ Translated implementation SHOULD minimize external dependencies while maintainin
 
 ### SC-006: Example Compatibility
 
-A translated echo bot example MUST produce identical behavior to the C# sample when deployed.
+A translated echo bot example MUST produce identical behavior to the reference samples when deployed.
 
 ---
 
-## Implementation Notes for Translation
+## Sample: Echo Bot
 
-### JSON Serialization
-
-- Use language-native JSON libraries (Python `json`, Go `encoding/json`, TypeScript native JSON)
-- Configure camelCase property naming
-- Preserve unknown properties via extension data mechanism
-- Handle nullable fields appropriately
-
-### HTTP Client
-
-- Use language-native HTTP libraries
-- Implement retry logic for transient failures
-- Handle token refresh for long-running operations
-
-### Web Server Framework
-
-The bot needs an HTTP server to receive incoming activities. Use idiomatic web frameworks for each language:
-
-- **C#/.NET**: ASP.NET Core (built-in), Kestrel
-- **Python**: FastAPI, Flask, aiohttp
-- **TypeScript/Node.js**: Express, Koa, Fastify, or native `http` module
-- **Go**: Standard `net/http`, Gin, Echo, or Chi
-- **Java**: Spring Boot, Vert.x, or Javalin
-- **Rust**: Actix-web, Axum, or Rocket
-
-The web server must:
-- Accept POST requests at the bot endpoint (default: `/api/messages`)
-- Parse JSON request body as Activity
-- Support HTTPS (required for production)
-- Handle authentication middleware for JWT validation
-
-### Async/Await Patterns
-
-- C# uses `async/await` with `Task<T>`
-- Python: Use `asyncio` with `async/await`
-- Go: Use goroutines and channels, or context
-- TypeScript: Use `Promise<T>` with `async/await`
-- Java: Use `CompletableFuture<T>` or reactive patterns
-
-### Component Wiring
-
-Use whatever approach is idiomatic for the target language:
-
-- **Simple instantiation**: Pass dependencies via constructors
-- **Factory functions**: Create components with `create_bot()` style functions
-- **DI containers**: Use if the platform/framework encourages it
-- **Global/module-level**: Acceptable for simple applications
-
-The key requirement is that components can access their dependencies (e.g., BotApplication needs ConversationClient to send messages).
-
-### JWT Validation
-
-- Use established JWT libraries in target language
-- Fetch OpenID configuration from Bot Framework
-- Validate issuer, audience, signature, and expiration
-
-### Middleware Pattern
-
-- Implement chain-of-responsibility pattern
-- Support async execution
-- Allow short-circuiting via `next()` call control
-
----
-
-## Sample: Echo Bot (Reference Implementation)
-
-The echo bot demonstrates the minimal implementation. Each language should adapt the setup pattern to be idiomatic.
-
-### C# (Source Reference)
+### C# with ASP.NET Core
 
 ```csharp
-using Rido.BFLite.Core.Hosting;
-using Rido.BFLite.Teams;
+using Botas;
+using Botas.Hosting;
 
 var builder = WebApplication.CreateSlimBuilder(args);
-builder.Services.AddBotApplication<TeamsBotApplication>();
+builder.Services.AddBotApplication();
 var app = builder.Build();
 
-var bot = app.UseBotApplication<TeamsBotApplication>();
+var bot = app.UseBotApplication();
 
-bot.OnMessage = async (context, cancellationToken) =>
+bot.OnActivity = async (activity, cancellationToken) =>
 {
-    await context.SendActivityAsync(
-        $"You said: {context.Activity.Text}",
-        cancellationToken
-    );
+    if (activity.Type == "message")
+    {
+        await bot.SendActivityAsync(activity.CreateReplyActivity($"You said: {activity.Text}"), cancellationToken);
+    }
 };
 
 app.Run();
 ```
 
-### Python (Target Example)
-
-```python
-from bflite import TeamsBotApplication
-
-# Create bot with configuration
-bot = TeamsBotApplication(
-    client_id="your-app-id",
-    client_secret="your-app-secret"
-)
-
-# Set up message handler
-@bot.on_message
-async def handle_message(context):
-    await context.send_activity(f"You said: {context.activity.text}")
-
-# Run the application
-if __name__ == "__main__":
-    bot.run(port=3978)
-```
-
-### TypeScript (Target Example)
+### TypeScript with Express
 
 ```typescript
-import { TeamsBotApplication } from 'bflite';
+import express from 'express'
+import { BotApplication, botAuthExpress, createReplyActivity } from 'botas'
 
-// Create bot with configuration
-const bot = new TeamsBotApplication({
-    clientId: 'your-app-id',
-    clientSecret: 'your-app-secret'
-});
+const bot = new BotApplication()
 
-// Set up message handler
-bot.onMessage = async (context) => {
-    await context.sendActivity(`You said: ${context.activity.text}`);
-};
+bot.on('message', async (activity) => {
+  await bot.sendActivityAsync(
+    activity.serviceUrl,
+    activity.conversation.id,
+    createReplyActivity(activity, `You said: ${activity.text}`)
+  )
+})
 
-// Run the application
-bot.listen(3978);
+const server = express()
+server.post('/api/messages', botAuthExpress(), (req, res) => { bot.processAsync(req, res) })
+server.listen(Number(process.env['PORT'] ?? 3978))
 ```
 
-### Go (Target Example)
+### TypeScript with Hono
 
-```go
-package main
+```typescript
+import { Hono } from 'hono'
+import { serve } from '@hono/node-server'
+import { BotApplication, botAuthHono, createReplyActivity } from 'botas'
 
-import (
-    "fmt"
-    "github.com/example/bflite"
-)
+const bot = new BotApplication()
 
-func main() {
-    bot := bflite.NewTeamsBotApplication(bflite.Config{
-        ClientID:     "your-app-id",
-        ClientSecret: "your-app-secret",
-    })
+bot.on('message', async (activity) => {
+  await bot.sendActivityAsync(
+    activity.serviceUrl,
+    activity.conversation.id,
+    createReplyActivity(activity, `You said: ${activity.text}`)
+  )
+})
 
-    bot.OnMessage(func(ctx *bflite.Context) error {
-        return ctx.SendActivity(fmt.Sprintf("You said: %s", ctx.Activity.Text))
-    })
-
-    bot.Listen(":3978")
-}
+const app = new Hono()
+app.post('/api/messages', botAuthHono(), async (c) => {
+  await bot.processBody(await c.req.text())
+  return c.json({})
+})
+serve({ fetch: app.fetch, port: Number(process.env['PORT'] ?? 3978) })
 ```
 
 ---
@@ -645,7 +570,7 @@ Content-Type: application/json
 ### Send Activity
 
 ```http
-POST {serviceUrl}v3/conversations/{conversationId}/activities/
+POST {serviceUrl}v3/conversations/{conversationId}/activities
 Authorization: Bearer {oauth-token}
 Content-Type: application/json
 
@@ -662,9 +587,7 @@ Content-Type: application/json
 ### Response
 
 ```json
-{
-  "id": "new-activity-id"
-}
+{ "id": "new-activity-id" }
 ```
 
 ---
@@ -673,65 +596,16 @@ Content-Type: application/json
 
 ### OpenID Configuration
 
-```text
+```
 https://login.botframework.com/v1/.well-known/openid-configuration
 ```
 
 ### Token Endpoint (for outbound)
 
-```text
-https://login.microsoftonline.com/{tenantId}/oauth2/v2.0/token
-
-POST body:
+```
+POST https://login.microsoftonline.com/{tenantId}/oauth2/v2.0/token
   grant_type=client_credentials
   client_id={botAppId}
   client_secret={botAppSecret}
   scope=https://api.botframework.com/.default
-```
-
----
-
-## Appendix: Teams-Specific Activity Properties
-
-### Installation Update
-
-```json
-{
-  "type": "installationUpdate",
-  "action": "add",
-  "channelData": {
-    "settings": {
-      "selectedChannel": {
-        "id": "channel-id"
-      }
-    },
-    "tenant": {
-      "id": "tenant-id"
-    }
-  }
-}
-```
-
-### Message Reaction
-
-```json
-{
-  "type": "messageReaction",
-  "reactionsAdded": [
-    { "type": "like" }
-  ],
-  "reactionsRemoved": []
-}
-```
-
-### Conversation Update
-
-```json
-{
-  "type": "conversationUpdate",
-  "membersAdded": [
-    { "id": "user-id", "name": "User Name" }
-  ],
-  "membersRemoved": []
-}
 ```

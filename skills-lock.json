@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "teams-bot-infra": {
+      "source": "heyitsaamir/teamscli",
+      "sourceType": "github",
+      "computedHash": "3b91cb566f52fafc52bfa82c5a70713caa65270f116cc0c1d5466bb05ec80e2f"
+    }
+  }
+}

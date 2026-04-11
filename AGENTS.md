@@ -1,230 +1,183 @@
-# Agents.md
+# AGENTS.md
 
 ## Overview
 
-This document provides instructions for implementing the same features across three programming languages:
-- **.NET** (C#) - [dotnet/](dotnet/)
-- **TypeScript/Node.js** - [nodejs/](nodejs/)
-- **Python** - [python/](python/)
+`botas` is a multi-language Bot Framework library. Implementations exist for:
 
-The goal is to maintain feature parity across all three implementations while following language-specific best practices and conventions.
+- **.NET (C#)** — `dotnet/`
+- **TypeScript / Node.js** — `node/`
 
----
-
-## General Implementation Guidelines
-
-When implementing a new feature:
-1. Understand the requirement and design
-2. Implement in one language first (reference implementation)
-3. Implement the same feature in the other two languages
-4. Ensure consistent behavior and output across all implementations
-5. Document any language-specific variations
-6. Add tests for all language implementations
+The goal is behavioral parity across all languages while following each language's idioms.
 
 ---
 
-## .NET Implementation (C#)
+## Repository Layout
 
-### Directory: `dotnet/`
+```text
+botas/
+├── dotnet/
+│   └── src/
+│       └── Botas/
+│           ├── BotApplication.cs
+│           ├── ConversationClient.cs
+│           ├── UserTokenClient.cs
+│           ├── Schema/
+│           │   ├── Activity.cs
+│           │   ├── ChannelData.cs
+│           │   ├── Conversation.cs
+│           │   └── ConversationAccount.cs
+│           └── Hosting/            # ASP.NET Core integration
+├── node/
+│   ├── package.json                # Workspace root (private)
+│   ├── packages/
+│   │   └── botas/                  # Published library
+│   │       ├── src/
+│   │       │   ├── app/            # BotApplication, BotHandlerException
+│   │       │   ├── auth/           # JWT middleware, TokenManager
+│   │       │   ├── clients/        # ConversationClient, UserTokenClient
+│   │       │   ├── middleware/     # ITurnMiddleware interface
+│   │       │   └── schema/         # Activity types, createReplyActivity
+│   │       └── tsconfig.json
+│   └── samples/
+│       ├── express/                # Express integration sample
+│       └── hono/                   # Hono integration sample
+├── bot-spec.md                     # Canonical feature spec (read before porting)
+└── AGENTS.md                       # This file
+```
 
-**Technology Stack:**
-- Language: C#
-- Runtime: .NET Core 10
-- Package Manager: NuGet
+---
 
-**Setup:**
+## Build & Test
+
+### dotnet
+
 ```bash
 cd dotnet
-dotnet restore
-dotnet build
+dotnet build src/Botas
+dotnet test                 # if tests exist
 ```
 
-**Key Guidelines:**
-- Follow C# naming conventions (PascalCase for classes, camelCase for properties)
-- Use async/await for asynchronous operations
-- Implement interfaces where appropriate
-- Use LINQ for data manipulation
-- Handle exceptions explicitly
-- Leverage SOLID principles
+### node
 
-**Feature Implementation Template:**
-- Create feature class in `src/Features/[FeatureName].cs`
-- Add unit tests in `tests/[FeatureName].Tests.cs`
-- Follow the project structure conventions
-- Use dependency injection for loose coupling
-
-**Common Patterns:**
-- Use `IEnumerable<T>` for lazy evaluation
-- Implement IDisposable for resource management
-- Use nullable reference types (C# 8.0+)
-- Follow XML documentation conventions
-
----
-
-## TypeScript/Node.js Implementation
-
-### Directory: `nodejs/`
-
-**Technology Stack:**
-- Language: TypeScript
-- Runtime: Node.js
-- Package Manager: npm / yarn
-
-**Setup:**
 ```bash
-cd nodejs
+cd node
 npm install
-npm run build
+npm run build               # builds all workspaces
+
+# Run a sample (requires tunneling, e.g. ngrok)
+npx tsx samples/express/index.ts
+npx tsx samples/hono/index.ts
 ```
 
-**Key Guidelines:**
-- Use strict TypeScript settings (`strict: true`)
-- Follow camelCase naming conventions
-- Use async/await for asynchronous operations
-- Implement proper error handling with typed errors
-- Use ES6 modules
-- Add JSDoc comments for exported APIs
-
-**Feature Implementation Template:**
-- Create feature module in `src/features/[featureName].ts`
-- Add unit tests in `tests/[featureName].test.ts`
-- Use express or relevant framework for APIs
-- Export typed interfaces and classes
-
-**Common Patterns:**
-- Use interfaces for contracts
-- Implement proper error classes extending Error
-- Use enums for constant sets
-- Leverage generics for reusable components
-- Use option chaining and nullish coalescing
-
 ---
 
-## Python Implementation
+## Core Architecture
 
-### Directory: `python/`
+### Turn Pipeline
 
-**Technology Stack:**
-- Language: Python 3.8+
-- Package Manager: pip / poetry
-- Development: virtual environment recommended
+Every incoming activity flows through a pipeline:
 
-**Setup:**
-```bash
-cd python
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
+```
+HTTP POST /api/messages
+  └─ Auth middleware (JWT validation)
+       └─ BotApplication.processBody / ProcessAsync
+            └─ middleware[0].onTurnAsync → next()
+                 └─ middleware[1].onTurnAsync → next()
+                      └─ ...
+                           └─ handleActivityAsync (dispatches to registered handler)
 ```
 
-**Key Guidelines:**
-- Follow PEP 8 style guide
-- Use type hints for all functions (Python 3.5+)
-- Use snake_case naming conventions
-- Implement proper error handling with custom exceptions
-- Write docstrings for modules, classes, and functions
-- Use async/await with asyncio for concurrent operations
+Middleware can inspect/modify the activity or short-circuit by not calling `next()`.
 
-**Feature Implementation Template:**
-- Create feature module in `src/features/[feature_name].py`
-- Add unit tests in `tests/test_[feature_name].py`
-- Use pytest for testing framework
-- Document with comprehensive docstrings
+### Two-Auth Model
 
-**Common Patterns:**
-- Use dataclasses or Pydantic for data models
-- Implement context managers for resource management
-- Use generators for memory-efficient operations
-- Leverage decorators for cross-cutting concerns
-- Use logging module instead of print statements
+- **Inbound**: Validate the JWT `Authorization` header on every POST using JWKS from `https://login.botframework.com/v1/.well-known/openid-configuration`
+- **Outbound**: Acquire an OAuth2 client-credentials token (scope `https://api.botframework.com/.default`) before every activity send via the Bot Framework REST API
+
+### Handler Dispatch
+
+Handlers are registered by activity type string. When an activity arrives, the matching handler is called. Unregistered types are silently ignored.
+
+- dotnet: single `OnActivity: Func<Activity, CancellationToken, Task>?` callback; dispatch logic lives in the application code
+- node: `on(type, handler)` Map; the library dispatches by type
+
+### Error Wrapping
+
+Any exception thrown inside a handler is wrapped in `BotHandlerException` (node) / `BotHanlderException` (dotnet, note the typo — kept for backward compat). The wrapper carries the original exception and the triggering activity.
 
 ---
 
-## Feature Implementation Checklist
+## Porting Checklist
 
-For each new feature, ensure:
+Follow this order when adding a new language:
 
-### Design Phase
-- [ ] Write feature specification
-- [ ] Design API contracts
-- [ ] Identify cross-language consistency points
+### 1. Schema
 
-### Implementation Phase
-- [ ] Implement in .NET (C#)
-  - [ ] Write feature code
-  - [ ] Add unit tests
-  - [ ] Document with XML comments
-- [ ] Implement in TypeScript/Node.js
-  - [ ] Write feature code
-  - [ ] Add unit tests
-  - [ ] Document with JSDoc/comments
-- [ ] Implement in Python
-  - [ ] Write feature code
-  - [ ] Add unit tests
-  - [ ] Document with docstrings
+Implement the minimal set of types (keep fields minimal — add only when a feature needs them):
 
-### Verification Phase
-- [ ] All implementations produce consistent output
-- [ ] All tests pass in all languages
-- [ ] Documentation is complete
-- [ ] Code follows language conventions
-- [ ] Error handling is consistent
+- [ ] `Activity` — `type`, `id`, `serviceUrl`, `channelId`, `text`, `replyToId`, `from`, `recipient`, `conversation`, `channelData`, `entities`, extension data
+- [ ] `ChannelAccount` — `id`, `name`, `aadObjectId`, `role`, extension data
+- [ ] `ConversationAccount` — `id`, `name`, `aadObjectId`, `role`, extension data
+- [ ] `TeamsChannelData` — `tenant`, `team`, `channel`, `settings`
+- [ ] `createReplyActivity(activity, text)` — copies conversation/serviceUrl/channelId, swaps from/recipient, sets replyToId
+- [ ] JSON: camelCase, ignore nulls on write, preserve unknown properties
 
----
+### 2. Inbound HTTP
 
-## Testing Strategy
+- [ ] Expose `POST /api/messages` endpoint
+- [ ] Parse request body as Activity JSON
+- [ ] Validate JWT bearer token (JWKS, issuer `api.botframework.com` or `sts.windows.net/{tid}`, audience = bot app ID)
+- [ ] Return `{}` on success, `401` on auth failure, `500` on handler error
 
-### Unit Tests
-- Each language uses its native testing framework
-- Aim for >80% code coverage
-- Test both happy paths and error cases
+### 3. Turn Pipeline
 
-### Integration Tests
-- Test feature interactions within same language
-- Test external API contracts consistently
+- [ ] `ITurnMiddleware` interface with `onTurnAsync(app, activity, next)`
+- [ ] `use(middleware)` registration in order
+- [ ] `BotApplication` dispatches through middleware chain then to handler
+- [ ] `BotHandlerException` (or language-equivalent) wrapping
 
-### Cross-Language Tests
-- Create language-agnostic test specifications
-- Verify all implementations meet the same requirements
+### 4. Outbound
+
+- [ ] `TokenManager` — OAuth2 client credentials (`CLIENT_ID`, `CLIENT_SECRET`, `TENANT_ID` env vars)
+- [ ] `ConversationClient.sendActivityAsync` — POST to `{serviceUrl}v3/conversations/{id}/activities`
+- [ ] `UserTokenClient` — OAuth user token operations (getToken, signOut, etc.)
+
+### 5. Idiom Choices
+
+- [ ] Decide on web framework integration (framework-agnostic adapter preferred)
+- [ ] Decide on handler registration pattern (single callback vs. per-type map)
+- [ ] Document any intentional differences in bot-spec.md under "Language-Specific Intentional Differences"
 
 ---
 
-## Documentation
+## Behavioral Invariants
 
-Each implementation should maintain:
-- **README.md** in the language directory
-- **CONTRIBUTING.md** for development guidelines
-- **API.md** or equivalent for API documentation
-- Inline code comments for complex logic
-- Language-specific documentation (XML comments, JSDoc, docstrings)
+These must hold in every language implementation:
+
+1. JWT validation MUST happen before activity processing — never trust an unauthenticated request
+2. `createReplyActivity` MUST copy `serviceUrl`, `channelId`, `conversation`; swap `from`/`recipient`; set `replyToId`
+3. If no handler is registered for an activity type, the activity is silently ignored (no error)
+4. Handler exceptions MUST be wrapped in a `BotHandlerException`-equivalent
+5. Outbound activities MUST be authenticated with a client-credentials bearer token
+6. Middleware MUST execute in registration order
 
 ---
 
-## Troubleshooting
+## Configuration
 
-### Common Issues
+All credentials come from environment variables:
 
-**Inconsistent Behavior Across Languages:**
-- Review the original specification
-- Ensure all edge cases are handled the same way
-- Create unit tests that verify consistency
-
-**Performance Differences:**
-- Document expected performance characteristics
-- Use profiling tools specific to each language
-- Consider language limitations and strengths
-
-**Version Compatibility:**
-- Maintain compatibility with specified minimum versions
-- Document version requirements clearly
-- Test with multiple versions when applicable
+| Variable | Description |
+|----------|-------------|
+| `CLIENT_ID` | Azure AD application (bot) ID |
+| `CLIENT_SECRET` | Azure AD client secret |
+| `TENANT_ID` | Azure AD tenant ID |
+| `PORT` | HTTP listen port (default: 3978) |
 
 ---
 
 ## References
 
-- [.NET Documentation](https://docs.microsoft.com/dotnet/)
-- [TypeScript Documentation](https://www.typescriptlang.org/docs/)
-- [Python Documentation](https://docs.python.org/)
-- [Node.js Documentation](https://nodejs.org/docs/)
-- [PEP 8 Style Guide](https://www.python.org/dev/peps/pep-0008/)
+- [bot-spec.md](bot-spec.md) — full feature specification
+- [Bot Framework REST API](https://learn.microsoft.com/azure/bot-service/rest-api/bot-framework-rest-connector-api-reference)
+- [Bot Framework authentication](https://learn.microsoft.com/azure/bot-service/rest-api/bot-framework-rest-connector-authentication)
