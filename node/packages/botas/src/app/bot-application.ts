@@ -13,6 +13,18 @@ import { getLogger } from '../logging/logger.js'
 /** A function that handles a specific activity type. */
 export type ActivityHandler = (activity: Activity) => Promise<void>
 
+/** Wraps an exception thrown by an activity handler with the originating activity. */
+export class BotHandlerException extends Error {
+  constructor (
+    message: string,
+    public readonly cause: unknown,
+    public readonly activity: Activity
+  ) {
+    super(message)
+    this.name = 'BotHandlerException'
+  }
+}
+
 /**
  * Core bot application that processes incoming Bot Framework activities.
  *
@@ -140,7 +152,15 @@ export class BotApplication {
   protected async handleActivityAsync (activity: Activity): Promise<void> {
     const handler = this.handlers.get(activity.type)
     if (handler) {
-      await handler(activity)
+      try {
+        await handler(activity)
+      } catch (err) {
+        throw new BotHandlerException(
+          `Handler for "${activity.type}" threw an error`,
+          err,
+          activity
+        )
+      }
     }
   }
 
