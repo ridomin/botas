@@ -10,3 +10,4 @@ botApp.OnActivity = async (activity, ct) =>
 {
     await botApp.SendActivityAsync(activity, ct);
 };
+webApp.Run();
