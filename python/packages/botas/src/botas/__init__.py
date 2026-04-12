@@ -12,7 +12,6 @@ from botas.schema.activity import (
     TeamsChannelAccount,
     create_reply_activity,
 )
-from botas.schema.channel_data import TeamsChannelData
 
 __all__ = [
     "Activity",
@@ -21,7 +20,7 @@ __all__ = [
     "ConversationAccount",
     "ResourceResponse",
     "create_reply_activity",
-    "TeamsChannelData",
+    "ChannelData",
     "validate_bot_token",
     "bot_auth_dependency",
     "BotAuthError",

@@ -14,13 +14,7 @@ from botas.schema.activity import (
     Transcript,
     create_reply_activity,
 )
-from botas.schema.channel_data import (
-    Team,
-    TeamsChannel,
-    TeamsChannelData,
-    TeamsChannelDataSettings,
-    TeamsChannelDataTenant,
-)
+from botas.schema.channel_data import ChannelData
 
 __all__ = [
     "Activity",
@@ -37,9 +31,5 @@ __all__ = [
     "ConversationsResult",
     "Transcript",
     "create_reply_activity",
-    "TeamsChannel",
-    "TeamsChannelDataTenant",
-    "Team",
-    "TeamsChannelDataSettings",
-    "TeamsChannelData",
+    "ChannelData",
 ]
