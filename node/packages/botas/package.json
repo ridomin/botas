@@ -21,10 +21,10 @@
     "test": "node --import tsx --test src/schema/activity.spec.ts src/app/bot-application.spec.ts"
   },
   "dependencies": {
-    "@azure/msal-node": "^2.16.2",
-    "axios": "^1.12.0",
+    "@azure/msal-node": "^5.1.2",
+    "axios": "^1.15.0",
     "debug": "^4.4.3",
-    "jsonwebtoken": "^9.0.2",
-    "jwks-rsa": "^3.2.0"
+    "jsonwebtoken": "^9.0.3",
+    "jwks-rsa": "^4.0.1"
   }
 }

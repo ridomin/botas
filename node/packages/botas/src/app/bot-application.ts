@@ -140,7 +140,7 @@ export class BotApplication {
    * @param conversationId - Target conversation ID.
    * @param activity - CoreActivity payload to send.
    */
-  async sendCoreActivityAsync (
+  async sendActivityAsync (
     serviceUrl: string,
     conversationId: string,
     activity: Partial<CoreActivity>
