@@ -17,41 +17,38 @@ The goal is behavioral parity across all languages while following each language
 ```text
 botas/
 ├── dotnet/
-│   └── src/
-│       └── Botas/
-│           ├── BotApplication.cs
-│           ├── ConversationClient.cs
-│           ├── UserTokenClient.cs
-│           ├── Schema/
-│           │   ├── Activity.cs
-│           │   ├── ChannelData.cs
-│           │   ├── Conversation.cs
-│           │   └── ConversationAccount.cs
-│           └── Hosting/            # ASP.NET Core integration
+│   └── Botas/
+│       ├── BotApplication.cs
+│       ├── ConversationClient.cs
+│       ├── UserTokenClient.cs
+│       ├── Schema/
+│       │   ├── Activity.cs
+│       │   ├── ChannelData.cs
+│       │   ├── Conversation.cs
+│       │   └── ConversationAccount.cs
+│       └── Hosting/            # ASP.NET Core integration
 ├── node/
 │   ├── package.json                # Workspace root (private)
-│   ├── packages/
-│   │   └── botas/                  # Published library
-│   │       ├── src/
-│   │       │   ├── app/            # BotApplication, BotHandlerException
-│   │       │   ├── auth/           # JWT middleware, TokenManager
-│   │       │   ├── clients/        # ConversationClient, UserTokenClient
-│   │       │   ├── middleware/     # ITurnMiddleware interface
-│   │       │   └── schema/         # Activity types, createReplyActivity
-│   │       └── tsconfig.json
+│   ├── botas/                      # Published library
+│   │   ├── src/
+│   │   │   ├── app/            # BotApplication, BotHandlerException
+│   │   │   ├── auth/           # JWT middleware, TokenManager
+│   │   │   ├── clients/        # ConversationClient, UserTokenClient
+│   │   │   ├── middleware/     # ITurnMiddleware interface
+│   │   │   └── schema/         # Activity types, createReplyActivity
+│   │   └── tsconfig.json
 │   └── samples/
 │       ├── express/                # Express integration sample
 │       └── hono/                   # Hono integration sample
 ├── python/
-│   ├── packages/
-│   │   └── botas/                  # Published library
-│   │       ├── pyproject.toml
-│   │       ├── src/botas/          # Python library implementation
-│   │       └── tests/
+│   ├── botas/                      # Published library
+│   │   ├── pyproject.toml
+│   │   ├── src/botas/          # Python library implementation
+│   │   └── tests/
 │   └── samples/
 │       ├── aiohttp/                # aiohttp integration sample
 │       └── fastapi/                # FastAPI integration sample
-├── bot-spec.md                     # Canonical feature spec (read before porting)
+├── docs/bot-spec.md                # Canonical feature spec (read before porting)
 └── AGENTS.md                       # This file
 ```
 
@@ -63,7 +60,7 @@ botas/
 
 ```bash
 cd dotnet
-dotnet build src/Botas
+dotnet build Botas
 dotnet test                 # if tests exist
 ```
 
@@ -168,7 +165,7 @@ Implement the minimal set of types (keep fields minimal — add only when a feat
 
 - [ ] Decide on web framework integration (framework-agnostic adapter preferred)
 - [ ] Decide on handler registration pattern (single callback vs. per-type map)
-- [ ] Document any intentional differences in bot-spec.md under "Language-Specific Intentional Differences"
+- [ ] Document any intentional differences in docs/bot-spec.md under "Language-Specific Intentional Differences"
 
 ---
 
@@ -200,6 +197,6 @@ All credentials come from environment variables:
 
 ## References
 
-- [bot-spec.md](bot-spec.md) — full feature specification
+- [docs/bot-spec.md](docs/bot-spec.md) — full feature specification
 - [Bot Framework REST API](https://learn.microsoft.com/azure/bot-service/rest-api/bot-framework-rest-connector-api-reference)
 - [Bot Framework authentication](https://learn.microsoft.com/azure/bot-service/rest-api/bot-framework-rest-connector-authentication)
