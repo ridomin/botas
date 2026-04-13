@@ -70,16 +70,16 @@ dotnet run --project samples/EchoBot
 
 ```typescript
 import express from 'express'
-import { BotApplication, botAuthExpress, createReplyActivity } from '@botas/botas'
+import { BotApplication, botAuthExpress, CoreActivityBuilder } from '@botas/botas'
 
 const bot = new BotApplication()
 
 bot.on('message', async (activity) => {
-  await bot.sendActivityAsync(
-    activity.serviceUrl,
-    activity.conversation.id,
-    createReplyActivity(activity, `You said: ${activity.text}`)
-  )
+  const reply = new CoreActivityBuilder()
+    .withConversationReference(activity)
+    .withText(`You said: ${activity.text}`)
+    .build()
+  await bot.sendActivityAsync(activity.serviceUrl, activity.conversation.id, reply)
 })
 
 const server = express()
@@ -99,16 +99,22 @@ npx tsx samples/express/index.ts
 
 ```python
 from fastapi import FastAPI, Depends, Request
-from botas import BotApplication, create_reply_activity, bot_auth_dependency
+from botas import BotApplication, CoreActivityBuilder, bot_auth_dependency
 
 bot = BotApplication()
 
 @bot.on("message")
 async def on_message(activity):
+    reply = (
+        CoreActivityBuilder()
+        .with_conversation_reference(activity)
+        .with_text(f"You said: {activity.text}")
+        .build()
+    )
     await bot.send_activity_async(
         activity.service_url,
         activity.conversation.id,
-        create_reply_activity(activity, f"You said: {activity.text}")
+        reply,
     )
 
 app = FastAPI()
@@ -148,7 +154,7 @@ botas/
 |---|---|
 | [Architecture](docs/Architecture.md) | Turn pipeline, two-auth model, middleware, schema |
 | [Infrastructure Setup](docs/Setup.md) | Register a bot and get credentials using the Azure portal |
-| [docs/bot-spec.md](docs/bot-spec.md) | Full feature specification and API surface per language |
+| [docs/specs/README.md](docs/specs/README.md) | Full feature specification and API surface per language |
 | [AGENTS.md](AGENTS.md) | Porting guide for new language implementations |
 
 ## Suggested additional docs
@@ -158,7 +164,7 @@ The following areas are good candidates for future documentation:
 - **`docs/ActivityPayloads.md`** — Annotated JSON examples for each activity type (`message`, `conversationUpdate`, `messageReaction`, `invoke`, `installationUpdate`)
 - **`docs/Configuration.md`** — Per-language configuration reference: env vars, DI wiring (.NET), options objects (Node), constructor args (Python), managed identity setup
 - **`docs/Middleware.md`** — How to write and register middleware, execution order, short-circuiting, and example patterns (logging, error handling, feature flags)
-- **`docs/ProactiveMessaging.md`** — How to send messages outside of a turn using `ConversationClient` and `UserTokenClient`
+- **`docs/ProactiveMessaging.md`** — How to send messages outside of a turn using `ConversationClient`
 - **`docs/Samples.md`** — Walkthrough of each sample (EchoBot, aiohttp, Hono) with annotated code and expected behavior
 - **`docs/Contributing.md`** — Behavioral invariants, CI setup, how to add a new language port
 
