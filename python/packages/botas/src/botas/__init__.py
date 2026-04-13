@@ -10,6 +10,7 @@ from botas.core_activity import (
     TeamsChannelAccount,
 )
 from botas.i_turn_middleware import ITurnMiddleware
+from botas.remove_mention_middleware import RemoveMentionMiddleware
 from botas.token_manager import BotApplicationOptions, TokenManager
 from botas.turn_context import TurnContext
 
@@ -26,6 +27,7 @@ __all__ = [
     "BotApplicationOptions",
     "ConversationClient",
     "ITurnMiddleware",
+    "RemoveMentionMiddleware",
     "BotApplication",
     "BotHandlerException",
     "TurnContext",
