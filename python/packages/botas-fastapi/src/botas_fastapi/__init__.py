@@ -14,6 +14,7 @@ from botas import (
     TeamsChannelAccount,
     TokenManager,
     TurnContext,
+    TurnMiddleware,
     validate_bot_token,
 )
 
@@ -35,6 +36,7 @@ __all__ = [
     "CoreActivity",
     "CoreActivityBuilder",
     "ITurnMiddleware",
+    "TurnMiddleware",
     "ResourceResponse",
     "TeamsChannelAccount",
     "TokenManager",
