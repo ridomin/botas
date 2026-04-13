@@ -17,6 +17,7 @@ Example::
 # FastAPI's runtime inspection of endpoint parameter type hints (Request).
 
 import os
+from contextlib import asynccontextmanager
 from typing import Any, Awaitable, Callable
 
 from botas.bot_application import BotApplication
@@ -78,12 +79,19 @@ class BotApp:
 
     def _build_app(self) -> Any:
         """Build and return the FastAPI application (without starting it)."""
-        from fastapi import Depends, FastAPI, Request  # noqa: F811
+        from fastapi import Depends, FastAPI, Request
+
+        @asynccontextmanager
+        async def lifespan(app):
+            # Startup
+            yield
+            # Shutdown - close the bot's HTTP client
+            await self.bot.aclose()
 
         auth_enabled = self._auth if self._auth is not None else bool(self.bot.appid)
         deps = [Depends(bot_auth_dependency(self.bot.appid))] if auth_enabled else []
 
-        fastapi_app = FastAPI()
+        fastapi_app = FastAPI(lifespan=lifespan)
         bot = self.bot
         path = self._path
 
