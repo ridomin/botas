@@ -94,6 +94,14 @@ class TestBotApp:
 
         assert order == ["mw", "handler"]
 
+    async def test_returns_400_on_malformed_json(self):
+        app = BotApp(auth=False)
+        fastapi_app = app._build_app()
+        async with AsyncClient(transport=ASGITransport(app=fastapi_app), base_url="http://test") as client:
+            resp = await client.post("/api/messages", content="not valid json {{{", headers=_JSON_HEADERS)
+
+        assert resp.status_code == 400
+
     async def test_on_as_two_arg_call(self):
         app = BotApp(auth=False)
         received: list[TurnContext] = []
