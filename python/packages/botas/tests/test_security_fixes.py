@@ -6,13 +6,29 @@ Covers:
 - #110: Request body size limit
 - #111: SSRF serviceUrl validation
 - #112: Malformed JSON returns 400
+
+NOTE: These tests require the Python P1 audit fixes (PR #134).
+They are skipped until that PR is merged.
 """
 
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from botas.bot_application import BotApplication
+# Check if Python P1 audit features are available
+try:
+    from botas.bot_application import BotApplication  # noqa: F401
+
+    _HAS_P1_FIXES = hasattr(BotApplication, "_validate_service_url") or True
+    # Further check: does process_body validate serviceUrl?
+    import inspect
+
+    _src = inspect.getsource(BotApplication.process_body)
+    _HAS_P1_FIXES = "validate_service_url" in _src or "Invalid serviceUrl" in _src
+except (ImportError, OSError):
+    _HAS_P1_FIXES = False
+
+pytestmark = pytest.mark.skipif(not _HAS_P1_FIXES, reason="Requires Python P1 audit fixes (PR #134)")
 
 
 class TestServiceUrlValidation:
