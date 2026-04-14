@@ -17,15 +17,23 @@ import pytest
 
 # Check if Python P1 audit features are available
 try:
-    from botas.bot_application import BotApplication  # noqa: F401
-
-    _HAS_P1_FIXES = hasattr(BotApplication, "_validate_service_url") or True
-    # Further check: does process_body validate serviceUrl?
     import inspect
 
+    from botas.bot_application import BotApplication  # noqa: F401
+
     _src = inspect.getsource(BotApplication.process_body)
-    _HAS_P1_FIXES = "validate_service_url" in _src or "Invalid serviceUrl" in _src
-except (ImportError, OSError):
+    _has_ssrf = "validate_service_url" in _src or "Invalid serviceUrl" in _src
+
+    # Also need JWKS timeout and botas_fastapi for full P1 coverage
+    from botas.bot_auth import _fetch_jwks_uri  # noqa: F401
+
+    _jwks_src = inspect.getsource(_fetch_jwks_uri)
+    _has_timeout = "timeout" in _jwks_src
+
+    import botas_fastapi  # noqa: F401
+
+    _HAS_P1_FIXES = _has_ssrf and _has_timeout
+except (ImportError, OSError, AttributeError):
     _HAS_P1_FIXES = False
 
 pytestmark = pytest.mark.skipif(not _HAS_P1_FIXES, reason="Requires Python P1 audit fixes (PR #134)")
@@ -152,10 +160,11 @@ class TestJwksTimeout:
             mock_client = AsyncMock()
             mock_client.__aenter__.return_value = mock_client
             mock_client.__aexit__.return_value = None
-            mock_client.get = AsyncMock(return_value=AsyncMock(
-                raise_for_status=lambda: None,
-                json=lambda: {"jwks_uri": "https://example.com/keys"}
-            ))
+            mock_client.get = AsyncMock(
+                return_value=AsyncMock(
+                    raise_for_status=lambda: None, json=lambda: {"jwks_uri": "https://example.com/keys"}
+                )
+            )
             mock_client_class.return_value = mock_client
 
             await _fetch_jwks_uri()
@@ -172,10 +181,9 @@ class TestJwksTimeout:
             mock_client = AsyncMock()
             mock_client.__aenter__.return_value = mock_client
             mock_client.__aexit__.return_value = None
-            mock_client.get = AsyncMock(return_value=AsyncMock(
-                raise_for_status=lambda: None,
-                json=lambda: {"keys": [{"kid": "key1"}]}
-            ))
+            mock_client.get = AsyncMock(
+                return_value=AsyncMock(raise_for_status=lambda: None, json=lambda: {"keys": [{"kid": "key1"}]})
+            )
             mock_client_class.return_value = mock_client
 
             await _fetch_jwks("https://example.com/keys")
@@ -193,7 +201,6 @@ class TestBodySizeLimit:
 
         app = BotApp(auth=False)
         fastapi_app = app._build_app()
-
 
         from fastapi.testclient import TestClient
 
@@ -226,7 +233,9 @@ class TestBodySizeLimit:
 
         client = TestClient(fastapi_app)
 
-        small_body = '{"type":"message","serviceUrl":"https://api.botframework.com","conversation":{"id":"c1"},"text":"hello"}'
+        small_body = (
+            '{"type":"message","serviceUrl":"https://api.botframework.com","conversation":{"id":"c1"},"text":"hello"}'
+        )
 
         response = client.post("/api/messages", content=small_body)
         assert response.status_code == 200
