@@ -200,7 +200,13 @@ export class BotApplication {
         await this.handleCoreActivityAsync(context)
       }
     }
-    await next()
+    try {
+      await next()
+    } catch (err) {
+      if (err instanceof BotHandlerException) throw err
+      // #67: Propagate middleware errors with original message
+      throw err
+    }
   }
 }
 
