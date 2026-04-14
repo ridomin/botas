@@ -70,7 +70,7 @@ app.start()
 ```
 
 ```python [Python]
-from botas import BotApp
+from botas_fastapi import BotApp
 
 app = BotApp()
 
@@ -97,7 +97,7 @@ npx tsx samples/echo-bot/index.ts
 ```
 
 ```bash [Python]
-cd python/packages/botas
+cd python/packages/botas-fastapi
 pip install -e ".[dev]"
 cd ../../samples/echo-bot
 python main.py

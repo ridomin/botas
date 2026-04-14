@@ -100,7 +100,7 @@ For manual Express, Hono, or other framework integration, see the [Node.js langu
 ### Python
 
 ```python
-from botas import BotApp
+from botas_fastapi import BotApp
 
 app = BotApp()
 
@@ -113,7 +113,7 @@ app.start()
 
 Run:
 ```bash
-cd python/packages/botas
+cd python/packages/botas-fastapi
 pip install -e ".[dev]"
 cd ../../samples/echo-bot
 python main.py
