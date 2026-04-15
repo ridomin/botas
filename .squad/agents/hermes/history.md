@@ -185,6 +185,28 @@ Fixed remaining medium and low findings from umbrella issue #74. Created PR #139
 MEDIUM: body size limit, type hints docs  
 LOW: HTTP security warning, CORS comment, Python version alignment, model docstrings, TokenManager.aclose(), event loop docs
 
+### FluentCards Refactor (teams-sample)
+
+Refactored `python/samples/teams-sample/main.py` to use the `fluent-cards` PyPI package instead of raw dict card construction.
+
+- **Import**: `from fluent_cards import AdaptiveCardBuilder, TextColor, TextSize, TextWeight, to_json`
+- **Removed**: `import json` — no longer needed for card building
+- **Welcome card** ("cards" handler): Uses `AdaptiveCardBuilder` fluent API with `add_text_block`, `add_input_text`, `add_action` (Action.Execute with verb + data)
+- **Invoke response card**: Reads `verb` and `data` from `ctx.activity.value` for round-trip echo, adds "Refresh" Action.Execute for re-invoke testing
+- **SuggestedActions and mention handlers**: Unchanged
+- **`to_json(card)`** passed to `TeamsActivityBuilder.with_adaptive_card_attachment()` — it expects a JSON string
+- **Dependency**: Added `fluent-cards` to `python/samples/teams-sample/pyproject.toml`
+- **Lint**: ruff clean (E, F, W, I rules, line length 120)
+- **Tests**: All 94 botas tests pass (no regressions)
+
+### FluentCards Adoption Cross-Language Session (2026-04-15)
+- **Cross-language decision approved and implemented.** All three language teams (Amy .NET, Fry Node, Hermes Python) adopted fluent-cards/FluentCards builder libraries for Adaptive Card construction in teams-samples.
+- **Amy:** Refactored .NET TeamsSample with FluentCards NuGet (v0.2.0-beta-0001). 73 tests pass.
+- **Fry:** Refactored Node teams-sample with fluent-cards npm (v0.2.0-beta.1). 7 tests pass.
+- **Hermes:** Refactored Python teams-sample with fluent-cards PyPI. 94 tests pass, ruff clean.
+- **Pattern parity:** All three implementations now use fluent builders; welcome → invoke echo pattern consistent across languages.
+- **Decision logged:** `.squad/decisions.md` entry #15 (FluentCards Adoption).
+
 ### Documentation Command Review (2026-04-13)
 
 Reviewed Kif's documentation updates for Python command accuracy across three docs files:
