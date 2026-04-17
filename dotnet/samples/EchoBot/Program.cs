@@ -2,9 +2,10 @@ using Botas;
 
 var app = BotApp.Create(args);
 
-app.On("message", async (context, ct) =>
+app.On("message", async (ctx, ct) =>
 {
-    await context.SendAsync($"Echo: {context.Activity.Text}, from aspnet", ct);
+    Console.WriteLine($"Received: {ctx.Activity.Text}");
+    await ctx.SendAsync($"You said: {ctx.Activity.Text}", ct);
 });
 
 app.Run();

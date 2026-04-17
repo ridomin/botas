@@ -1,105 +1,74 @@
-from __future__ import annotations
-
-from typing import TYPE_CHECKING, Any
-
-from botas.core_activity import CoreActivity, CoreActivityBuilder, ResourceResponse
+from typing import Union, Optional, TYPE_CHECKING
+from .core_activity import CoreActivity, ResourceResponse, ChannelAccount, Conversation
 
 if TYPE_CHECKING:
-    from botas.bot_application import BotApplication
+    from .bot_application import BotApplication
 
+EMOJI_MAP = {
+    "👍": "like",
+    "❤️": "heart",
+    "😂": "laugh",
+    "😮": "surprised",
+    "😢": "sad",
+    "😠": "angry",
+}
 
 class TurnContext:
-    """Context for a single activity turn, passed to handlers and middleware.
-
-    Provides the incoming activity, a reference to the bot application,
-    and a scoped :meth:`send` method that automatically routes replies
-    back to the originating conversation.
-
-    Example::
-
-        @bot.on("message")
-        async def on_message(ctx: TurnContext):
-            await ctx.send(f"You said: {ctx.activity.text}")
-    """
-
-    __slots__ = ("activity", "app")
-
-    def __init__(self, app: BotApplication, activity: CoreActivity) -> None:
-        self.activity = activity
+    def __init__(self, app: "BotApplication", activity: CoreActivity):
         self.app = app
+        self.activity = activity
 
-    async def send(
-        self,
-        activity_or_text: str | CoreActivity | dict[str, Any],
-    ) -> ResourceResponse | None:
-        """Send a reply to the conversation that originated this turn.
-
-        Accepts a plain text string (sent as a message activity), a
-        :class:`CoreActivity`, or a dict for full control over the reply.
-        Routing fields are automatically populated from the incoming activity.
-
-        When passing a dict, you must provide at minimum a ``type`` field.
-        Other fields such as ``text``, ``attachments``, ``suggestedActions``, etc.
-        are optional and depend on the activity type. Routing fields
-        (``from``, ``recipient``, ``conversation``, ``serviceUrl``, ``channelId``)
-        are auto-populated but can be overridden.
-
-        Example::
-
-            # Simple text reply
-            await ctx.send("Hello!")
-
-            # Dict with custom fields
-            await ctx.send({
+    async def send(self, text_or_activity: Union[str, CoreActivity, dict]) -> ResourceResponse:
+        if isinstance(text_or_activity, str):
+            reply = CoreActivity(
+                type="message",
+                text=text_or_activity,
+                serviceUrl=self.activity.service_url,
+                from_account=self.activity.recipient,
+                recipient=self.activity.from_account,
+                conversation=self.activity.conversation,
+            )
+        elif isinstance(text_or_activity, dict):
+            # Merge with defaults
+            data = {
                 "type": "message",
-                "text": "Hello!",
-                "attachments": [...]
-            })
-        """
-        if isinstance(activity_or_text, str):
-            reply: CoreActivity | dict[str, Any] = (
-                CoreActivityBuilder().with_conversation_reference(self.activity).with_text(activity_or_text).build()
-            )
-        elif isinstance(activity_or_text, CoreActivity):
-            reply = CoreActivityBuilder().with_conversation_reference(self.activity).build()
-            # Merge: caller fields take precedence
-            merged = reply.model_dump(by_alias=True, exclude_none=True)
-            merged.update(activity_or_text.model_dump(by_alias=True, exclude_none=True))
-            reply = merged
+                "serviceUrl": self.activity.service_url,
+                "from": self.activity.recipient.model_dump(by_alias=True),
+                "recipient": self.activity.from_account.model_dump(by_alias=True),
+                "conversation": self.activity.conversation.model_dump(by_alias=True),
+                **text_or_activity
+            }
+            reply = CoreActivity(**data)
         else:
-            base = (
-                CoreActivityBuilder()
-                .with_conversation_reference(self.activity)
-                .build()
-                .model_dump(by_alias=True, exclude_none=True)
-            )
-            base.update(activity_or_text)
-            reply = base
+            reply = text_or_activity
+            if not reply.service_url: reply.service_url = self.activity.service_url
+            if not reply.conversation.id: reply.conversation = self.activity.conversation
+            if not reply.from_account.id: reply.from_account = self.activity.recipient
+            if not reply.recipient.id: reply.recipient = self.activity.from_account
 
-        return await self.app.send_activity_async(
-            self.activity.service_url,
-            self.activity.conversation.id,
-            reply,
+        return await self.app.conversation_client.send_core_activity_async(
+            reply.service_url, reply.conversation.id, reply
         )
 
     async def send_typing(self) -> None:
-        """Send a typing indicator to the conversation.
+        await self.send({"type": "typing"})
 
-        Creates a typing activity with routing fields populated from the
-        incoming activity. Typing activities are ephemeral and do not
-        return a ResourceResponse.
+    async def send_targeted(self, text: str, recipient: ChannelAccount) -> ResourceResponse:
+        return await self.send({
+            "type": "message",
+            "text": text,
+            "recipient": recipient.model_dump(by_alias=True),
+            "is_targeted": True
+        })
 
-        Example::
-
-            @bot.on("message")
-            async def on_message(ctx: TurnContext):
-                await ctx.send_typing()
-                # ... do some work ...
-                await ctx.send("Done!")
-        """
-        typing_activity = CoreActivityBuilder().with_type("typing").with_conversation_reference(self.activity).build()
-        await self.app.send_activity_async(
+    async def add_reaction(self, emoji_or_type: str) -> None:
+        reaction_type = EMOJI_MAP.get(emoji_or_type, emoji_or_type)
+        if not self.activity.id:
+            raise Exception("Cannot add reaction: incoming activity has no id")
+        
+        await self.app.conversation_client.add_reaction_async(
             self.activity.service_url,
             self.activity.conversation.id,
-            typing_activity,
+            self.activity.id,
+            reaction_type
         )

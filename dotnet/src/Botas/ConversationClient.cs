@@ -1,102 +1,71 @@
-using Microsoft.Extensions.Logging;
-using System.Text;
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using Microsoft.Extensions.Options;
+using Microsoft.Identity.Web;
 
 namespace Botas;
 
-public class ConversationClient(HttpClient httpClient, ILogger<ConversationClient> logger)
+public class ConversationClient
 {
-    // #107: Allowlist of known Bot Framework service URL patterns to prevent SSRF
-    private static readonly string[] AllowedServiceUrlPatterns =
-    [
-        ".botframework.com",
-        ".botframework.us",       // US Government cloud
-        ".botframework.cn",       // China cloud
-        ".trafficmanager.net",    // Azure Traffic Manager (Teams)
-    ];
+    private readonly HttpClient _httpClient;
+    private readonly ITokenAcquisition _tokenAcquisition;
+    private readonly IOptions<MicrosoftIdentityOptions> _identityOptions;
 
-    public async Task<string> SendActivityAsync(CoreActivity activity, CancellationToken cancellationToken = default)
+    public ConversationClient(
+        HttpClient httpClient,
+        ITokenAcquisition tokenAcquisition,
+        IOptions<MicrosoftIdentityOptions> identityOptions)
     {
-
-        if (activity.Type == "trace")
-        {
-            logger.LogTrace("Skipping trace activity");
-            return string.Empty;
-        }
-
-        ValidateServiceUrl(activity.ServiceUrl);
-
-        string url = $"{activity.ServiceUrl!}v3/conversations/{activity.Conversation!.Id}/activities/";
-        string body = activity.ToJson();
-
-        HttpRequestMessage request = new(HttpMethod.Post, url)
-        {
-            Content = new StringContent(body, Encoding.UTF8, "application/json")
-        };
-
-        if (logger.IsEnabled(LogLevel.Trace))
-        {
-            logger.LogTrace("\n POST {Url} \n\n", url);
-            logger.LogTrace("Body: \n {Body} \n", body);
-        }
-
-        using HttpResponseMessage resp = await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
-
-        string respContent = await resp.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-        
-        if (resp.IsSuccessStatusCode)
-        {
-            logger.LogTrace("Response Status {Status}, content {Content}", resp.StatusCode, respContent);
-            return respContent;
-        }
-
-        // Log the full error details server-side for diagnostics
-        logger.LogError("Error sending activity to {Url}: {Status} - {Content}", url, resp.StatusCode, respContent);
-        
-        // Return only a generic error message to the caller to avoid exposing internal service details
-        throw new InvalidOperationException($"Error sending activity: {resp.StatusCode}");
+        _httpClient = httpClient;
+        _tokenAcquisition = tokenAcquisition;
+        _identityOptions = identityOptions;
     }
 
-    /// <summary>
-    /// Validates that the service URL is an HTTPS URL pointing to a known Bot Framework endpoint.
-    /// Prevents SSRF by rejecting URLs that could target internal services.
-    /// </summary>
-    internal static void ValidateServiceUrl(string? serviceUrl)
+    public async Task<ResourceResponse> SendCoreActivityAsync(CoreActivity activity, CancellationToken ct = default)
     {
-        if (string.IsNullOrEmpty(serviceUrl))
+        var serviceUrl = activity.ServiceUrl;
+        var conversationId = activity.Conversation.Id;
+
+        var baseUrl = serviceUrl.EndsWith("/") ? serviceUrl : $"{serviceUrl}/";
+        var urlSafeConvId = conversationId.Split(';')[0];
+        var url = $"{baseUrl}v3/conversations/{Uri.EscapeDataString(urlSafeConvId!)}/activities";
+
+        if (activity.IsTargeted)
         {
-            throw new ArgumentException("ServiceUrl is required.", nameof(serviceUrl));
+            url += "?isTargetedActivity=true";
         }
 
-        if (!Uri.TryCreate(serviceUrl, UriKind.Absolute, out Uri? uri))
+        var request = new HttpRequestMessage(HttpMethod.Post, url);
+        request.Content = JsonContent.Create(activity);
+
+        if (!string.IsNullOrEmpty(_identityOptions.Value.ClientId))
         {
-            throw new ArgumentException($"ServiceUrl is not a valid absolute URI: {serviceUrl}", nameof(serviceUrl));
+            var token = await _tokenAcquisition.GetAccessTokenForAppAsync("https://api.botframework.com/.default");
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         }
 
-        if (!uri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase))
+        var response = await _httpClient.SendAsync(request, ct);
+        response.EnsureSuccessStatusCode();
+
+        return (await response.Content.ReadFromJsonAsync<ResourceResponse>(cancellationToken: ct))!;
+    }
+
+    public async Task AddReactionAsync(string serviceUrl, string conversationId, string activityId, string reactionType, CancellationToken ct = default)
+    {
+        var baseUrl = serviceUrl.EndsWith("/") ? serviceUrl : $"{serviceUrl}/";
+        var urlSafeConvId = conversationId.Split(';')[0];
+        var url = $"{baseUrl}v3/conversations/{Uri.EscapeDataString(urlSafeConvId!)}/activities/{Uri.EscapeDataString(activityId)}/reactions";
+
+        var request = new HttpRequestMessage(HttpMethod.Post, url);
+        request.Content = JsonContent.Create(new { type = reactionType });
+
+        if (!string.IsNullOrEmpty(_identityOptions.Value.ClientId))
         {
-            throw new ArgumentException($"ServiceUrl must use HTTPS: {serviceUrl}", nameof(serviceUrl));
+            var token = await _tokenAcquisition.GetAccessTokenForAppAsync("https://api.botframework.com/.default");
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         }
 
-        string host = uri.Host;
-        bool isAllowed = false;
-        foreach (string pattern in AllowedServiceUrlPatterns)
-        {
-            if (host.EndsWith(pattern, StringComparison.OrdinalIgnoreCase))
-            {
-                isAllowed = true;
-                break;
-            }
-        }
-
-        // Allow localhost for development scenarios
-        if (!isAllowed && (host.Equals("localhost", StringComparison.OrdinalIgnoreCase) || host == "127.0.0.1"))
-        {
-            isAllowed = true;
-        }
-
-        if (!isAllowed)
-        {
-            throw new ArgumentException($"ServiceUrl host is not in the allowed Bot Framework service URL list: {host}", nameof(serviceUrl));
-        }
+        var response = await _httpClient.SendAsync(request, ct);
+        response.EnsureSuccessStatusCode();
     }
 }

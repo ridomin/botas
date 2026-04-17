@@ -54,6 +54,15 @@ pip install -e ".[dev]"
 python -m pytest tests/ -v
 ```
 
+### Go
+
+```bash
+cd go
+go mod tidy
+go build ./...
+go test ./...
+```
+
 ### All languages
 
 ```bash
@@ -77,6 +86,7 @@ CI runs on every push and pull request to `main`. The workflow is defined in [`.
 | `dotnet` | `ubuntu-latest` | Restore → Build → Test |
 | `node` | `ubuntu-latest` | Install → Set version → Build → Test |
 | `python` | `ubuntu-latest` | Install → Lint (ruff) → Test (pytest) |
+| `go` | `ubuntu-latest` | Build → Test |
 
 All three jobs must pass before a PR can merge.
 
@@ -87,6 +97,7 @@ All three jobs must pass before a PR can merge.
 | .NET | 10.0 (preview) |
 | Node.js | 22 |
 | Python | 3.11 |
+| Go | 1.22 |
 
 ---
 

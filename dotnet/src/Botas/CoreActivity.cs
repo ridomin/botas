@@ -1,37 +1,97 @@
-using System.Text.Json;
-using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 
 namespace Botas;
 
-public class ExtendedPropertiesDictionary : Dictionary<string, object?> { }
-
-public class CoreActivity(string type = "message")
+public class ChannelAccount
 {
-    [JsonPropertyName("type")] public string Type { get; set; } = type;
-    [JsonPropertyName("serviceUrl")] public string? ServiceUrl { get; set; }
-    [JsonPropertyName("name")] public string? Name { get; set; }
-    [JsonPropertyName("value")] public object? Value { get; set; }
-    [JsonPropertyName("text")] public string? Text { get; set; }
-    [JsonPropertyName("from")] public ChannelAccount? From { get; set; }
-    [JsonPropertyName("recipient")] public ChannelAccount? Recipient { get; set; }
-    [JsonPropertyName("conversation")] public Conversation? Conversation { get; set; }
-    [JsonPropertyName("entities")] public JsonArray? Entities { get; set; }
-    [JsonPropertyName("attachments")] public JsonArray? Attachments { get; set; }
-    [JsonExtensionData] public ExtendedPropertiesDictionary Properties { get; set; } = [];
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
 
-    public readonly static JsonSerializerOptions DefaultJsonOptions = new()
-    {
-        WriteIndented = true,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    };
+    [JsonPropertyName("name")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Name { get; set; }
 
-    public string ToJson() => JsonSerializer.Serialize(this, GetType(), DefaultJsonOptions);
+    [JsonPropertyName("aadObjectId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? AadObjectId { get; set; }
 
-    public static CoreActivity FromJsonString(string json)
-        => JsonSerializer.Deserialize<CoreActivity>(json, DefaultJsonOptions)!;
+    [JsonPropertyName("role")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Role { get; set; }
 
-    public static ValueTask<CoreActivity?> FromJsonStreamAsync(Stream stream, CancellationToken cancellationToken = default)
-        => JsonSerializer.DeserializeAsync<CoreActivity>(stream, DefaultJsonOptions, cancellationToken);
+    [JsonExtensionData]
+    public Dictionary<string, object>? Properties { get; set; }
+}
+
+public class Conversation
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    [JsonExtensionData]
+    public Dictionary<string, object>? Properties { get; set; }
+}
+
+public class CoreActivity
+{
+    [JsonPropertyName("type")]
+    public string Type { get; set; } = "message";
+
+    [JsonPropertyName("id")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Id { get; set; }
+
+    [JsonPropertyName("serviceUrl")]
+    public string ServiceUrl { get; set; } = string.Empty;
+
+    [JsonPropertyName("channelId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ChannelId { get; set; }
+
+    [JsonPropertyName("text")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Text { get; set; }
+
+    [JsonPropertyName("name")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Name { get; set; }
+
+    [JsonPropertyName("value")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public object? Value { get; set; }
+
+    [JsonPropertyName("from")]
+    public ChannelAccount From { get; set; } = new();
+
+    [JsonPropertyName("recipient")]
+    public ChannelAccount Recipient { get; set; } = new();
+
+    [JsonPropertyName("conversation")]
+    public Conversation Conversation { get; set; } = new();
+
+    [JsonPropertyName("entities")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<object>? Entities { get; set; }
+
+    [JsonPropertyName("attachments")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<object>? Attachments { get; set; }
+
+    [JsonIgnore]
+    public bool IsTargeted { get; set; }
+
+    [JsonExtensionData]
+    public Dictionary<string, object>? Properties { get; set; }
+}
+
+public class ResourceResponse
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+}
+
+public class InvokeResponse
+{
+    public int Status { get; set; }
+    public object? Body { get; set; }
 }

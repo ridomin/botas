@@ -1,60 +1,70 @@
 namespace Botas;
 
-/// <summary>
-/// Context for a single activity turn, passed to handlers and middleware.
-/// Provides the incoming activity, a reference to the bot application,
-/// and a scoped <see cref="SendAsync(string, CancellationToken)"/> method
-/// that automatically routes replies back to the originating conversation.
-/// </summary>
 public class TurnContext
 {
-    /// <summary>The incoming activity being processed.</summary>
+    private static readonly Dictionary<string, string> EmojiMap = new()
+    {
+        { "👍", "like" },
+        { "❤️", "heart" },
+        { "😂", "laugh" },
+        { "😮", "surprised" },
+        { "😢", "sad" },
+        { "😠", "angry" }
+    };
+
+    public BotApplication App { get; }
     public CoreActivity Activity { get; }
 
-    /// <summary>The BotApplication instance processing this turn.</summary>
-    public BotApplication App { get; }
-
-    internal TurnContext(BotApplication app, CoreActivity activity)
+    public TurnContext(BotApplication app, CoreActivity activity)
     {
         App = app;
         Activity = activity;
     }
 
-    /// <summary>
-    /// Send a text reply to the conversation that originated this turn.
-    /// </summary>
-    public Task<string> SendAsync(string text, CancellationToken cancellationToken = default)
+    public Task<ResourceResponse> SendAsync(string text, CancellationToken ct = default)
     {
-        var reply = new CoreActivityBuilder()
-            .WithConversationReference(Activity)
-            .WithText(text)
-            .Build();
-        return App.SendActivityAsync(reply, cancellationToken);
+        return SendAsync(new CoreActivity { Type = "message", Text = text }, ct);
     }
 
-    /// <summary>
-    /// Send a custom activity reply to the conversation that originated this turn.
-    /// Routing fields are populated from the incoming activity if not already set.
-    /// </summary>
-    public Task<string> SendAsync(CoreActivity activity, CancellationToken cancellationToken = default)
+    public async Task<ResourceResponse> SendAsync(CoreActivity reply, CancellationToken ct = default)
     {
-        activity.ServiceUrl ??= Activity.ServiceUrl;
-        activity.Conversation ??= Activity.Conversation;
-        activity.From ??= Activity.Recipient;
-        activity.Recipient ??= Activity.From;
-        return App.SendActivityAsync(activity, cancellationToken);
+        if (string.IsNullOrEmpty(reply.ServiceUrl)) reply.ServiceUrl = Activity.ServiceUrl;
+        if (string.IsNullOrEmpty(reply.Conversation.Id)) reply.Conversation = new Conversation { Id = Activity.Conversation.Id };
+        if (string.IsNullOrEmpty(reply.From.Id)) reply.From = new ChannelAccount { Id = Activity.Recipient.Id, Name = Activity.Recipient.Name };
+        if (string.IsNullOrEmpty(reply.Recipient.Id)) reply.Recipient = new ChannelAccount { Id = Activity.From.Id, Name = Activity.From.Name };
+        if (string.IsNullOrEmpty(reply.ChannelId)) reply.ChannelId = Activity.ChannelId;
+
+        return await App.ConversationClient.SendCoreActivityAsync(reply, ct);
     }
 
-    /// <summary>
-    /// Send a typing indicator to the conversation that originated this turn.
-    /// Returns the activity ID of the sent typing activity.
-    /// </summary>
-    public Task<string> SendTypingAsync(CancellationToken cancellationToken = default)
+    public Task SendTypingAsync(CancellationToken ct = default)
     {
-        var typingActivity = new CoreActivityBuilder()
-            .WithType("typing")
-            .WithConversationReference(Activity)
-            .Build();
-        return App.SendActivityAsync(typingActivity, cancellationToken);
+        return SendAsync(new CoreActivity { Type = "typing" }, ct);
+    }
+
+    public Task<ResourceResponse> SendTargetedAsync(string text, ChannelAccount recipient, CancellationToken ct = default)
+    {
+        return SendAsync(new CoreActivity
+        {
+            Type = "message",
+            Text = text,
+            Recipient = recipient,
+            IsTargeted = true
+        }, ct);
+    }
+
+    public async Task AddReactionAsync(string emojiOrType, CancellationToken ct = default)
+    {
+        var reactionType = EmojiMap.TryGetValue(emojiOrType, out var mapped) ? mapped : emojiOrType;
+        if (string.IsNullOrEmpty(Activity.Id))
+        {
+            throw new InvalidOperationException("Cannot add reaction: incoming activity has no id");
+        }
+        await App.ConversationClient.AddReactionAsync(
+            Activity.ServiceUrl,
+            Activity.Conversation.Id,
+            Activity.Id,
+            reactionType,
+            ct);
     }
 }

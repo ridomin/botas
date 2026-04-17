@@ -2,7 +2,8 @@
 
 ## Overview
 
-`botas` is a multi-language Bot Framework library with implementations in **.NET**, **Node.js**, and **Python**. The goal is behavioral parity across all languages while following each language's idioms.
+`botas` is a multi-language Bot Framework library with implementations in **.NET**, **Node.js**, **Python**, and **Go**.
+ The goal is behavioral parity across all languages while following each language's idioms.
 
 ---
 
@@ -29,10 +30,12 @@ Each language lives in its own directory. Work in the relevant subfolder unless 
 | .NET | `dotnet/src/Botas/` | `dotnet/samples/EchoBot/` | `dotnet/tests/` |
 | Node.js | `node/packages/botas/src/` | `node/samples/` | `node/packages/botas/src/*.spec.ts` |
 | Python | `python/packages/botas/src/botas/` | `python/samples/` | `python/packages/botas/tests/` |
+| Go | `go/pkg/botas/` | `go/samples/` | `go/pkg/botas/` |
 
 ### 3. Keep implementations in sync
 
-When a spec change affects behavior, update all three languages. When adding an idiomatic feature to one language, document intentional differences in [`specs/README.md`](specs/README.md) under "Language-Specific Intentional Differences".
+When a spec change affects behavior, update all languages.
+ When adding an idiomatic feature to one language, document intentional differences in [`specs/README.md`](specs/README.md) under "Language-Specific Intentional Differences".
 
 ---
 
@@ -61,6 +64,15 @@ npm test
 cd python/packages/botas
 pip install -e ".[dev]"
 python -m pytest tests/ -v
+```
+
+### Go
+
+```bash
+cd go
+go mod tidy
+go build ./...
+go test ./...
 ```
 
 ### Python Linting (required before committing)

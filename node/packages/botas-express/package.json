@@ -1,47 +1,22 @@
 {
   "name": "botas-express",
   "version": "0.1.0",
-  "description": "Express integration for botas – zero-boilerplate Bot Framework bot hosting",
-  "type": "module",
-  "license": "MIT",
-  "author": "rido-min",
-  "homepage": "https://github.com/rido-min/botas#readme",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/rido-min/botas.git",
-    "directory": "node/packages/botas-express"
-  },
-  "bugs": {
-    "url": "https://github.com/rido-min/botas/issues"
-  },
-  "keywords": ["bot", "bot-framework", "express", "microsoft-teams", "chatbot"],
-  "readme": "README.md",
+  "description": "Express wrapper for BotAS",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "engines": {
-    "node": ">=20"
-  },
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    }
-  },
-  "scripts": {
-    "clean": "npx rimraf ./dist",
-    "build": "tsc -p tsconfig.json",
-    "prepack": "npm run build",
-    "test": "node --import tsx --test src/bot-app.spec.ts"
-  },
   "files": [
-    "dist/",
-    "README.md"
+    "dist"
   ],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run"
+  },
   "dependencies": {
-    "botas-core": "*",
-    "express": "^5.2.1"
+    "botas": "*",
+    "express": "^4.0.0"
   },
   "devDependencies": {
-    "@types/express": "^5.0.6"
+    "@types/express": "^4.0.0",
+    "@types/node": "^20.0.0"
   }
 }

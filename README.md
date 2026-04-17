@@ -8,10 +8,11 @@
 [![NuGet](https://img.shields.io/nuget/v/Botas.svg)](https://www.nuget.org/packages/Botas/)
 [![npm](https://img.shields.io/npm/v/botas-core.svg)](https://www.npmjs.com/package/botas-core)
 [![PyPI](https://img.shields.io/pypi/v/botas.svg)](https://pypi.org/project/botas/)
+[![Go](https://img.shields.io/badge/go-00ADD8?style=flat&logo=go&logoColor=white)](go/)
 
-A lightweight, multi-language library for building [Microsoft Teams](https://learn.microsoft.com/en-us/microsoftteams/platform/) bots in **.NET**, **Node.js**, and **Python**.
+A lightweight, multi-language library for building [Microsoft Teams](https://learn.microsoft.com/en-us/microsoftteams/platform/) bots in **.NET**, **Node.js**, **Python**, and **Go**.
 
-📖 **[Full Documentation](https://rido-min.github.io/botas/)** — guides, API reference, and samples for all three languages.
+📖 **[Full Documentation](https://rido-min.github.io/botas/)** — guides, API reference, and samples for all languages.
 
 ---
 
@@ -34,7 +35,7 @@ The Teams CLI allows to automate the provisioning process from the command line:
 
 2. **Dev tunnel** — exposes your local port so Microsoft Teams can reach your bot. Install [Dev Tunnels](https://learn.microsoft.com/azure/developer/dev-tunnels/get-started).
 
-3. **Language runtime** (pick one): .NET 10(C#) SDK · Node.js(TypeScript) 20+ · Python 3.11+
+3. **Language runtime** (pick one): .NET 10(C#) SDK · Node.js(TypeScript) 22+ · Python 3.11+ · Go 1.22+
 
 ---
 
@@ -138,6 +139,31 @@ cd python/samples/echo-bot
 uv run --env-file ../../.env main.py
 ```
 
+#### Go
+
+```go
+package main
+
+import (
+	"context"
+	"github.com/microsoft/botas/go/pkg/botas"
+	"net/http"
+)
+
+func main() {
+	app := botas.NewBotApplication(botas.BotApplicationOptions{})
+	app.On("message", func(ctx *botas.TurnContext, c context.Context) error {
+		_, err := ctx.SendAsync(c, "You said: "+ctx.Activity.Text)
+		return err
+	})
+	http.ListenAndServe(":3978", botas.BotAuth("")(app))
+}
+```
+
+```bash
+cd go && go run samples/echo-bot/main.go
+```
+
 > No uv? Use `pip install -e . && python main.py` instead.
 
 ---
@@ -152,7 +178,7 @@ Open the `installLink` from Step 2 in your browser to add the bot to Microsoft T
 
 | Topic | Link |
 |---|---|
-| Language guides | [.NET](https://rido-min.github.io/botas/languages/dotnet) · [Node.js](https://rido-min.github.io/botas/languages/nodejs) · [Python](https://rido-min.github.io/botas/languages/python) |
+| Language guides | [.NET](https://rido-min.github.io/botas/languages/dotnet) · [Node.js](https://rido-min.github.io/botas/languages/nodejs) · [Python](https://rido-min.github.io/botas/languages/python) · [Go](go/) |
 | Teams features | [Mentions, Adaptive Cards, Suggested Actions](https://rido-min.github.io/botas/teams-features) |
 | Middleware | [Extend the turn pipeline](https://rido-min.github.io/botas/middleware) |
 | AI bots | [LLM integration samples](https://rido-min.github.io/botas/getting-started#ai-bot) |

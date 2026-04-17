@@ -1,52 +1,22 @@
 {
-  "name": "botas-core",
+  "name": "botas",
   "version": "0.1.0",
-  "description": "Lightweight library for building Microsoft Bot Framework bots - Node.js/TypeScript",
-  "type": "module",
-  "license": "MIT",
-  "author": "rido-min",
-  "homepage": "https://github.com/rido-min/botas#readme",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/rido-min/botas.git",
-    "directory": "node/packages/botas"
-  },
-  "bugs": {
-    "url": "https://github.com/rido-min/botas/issues"
-  },
-  "keywords": [
-    "bot",
-    "bot-framework",
-    "microsoft-teams",
-    "chatbot",
-    "typescript"
-  ],
-  "readme": "README.md",
+  "description": "Lightweight library for building Microsoft Bot Framework bots",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "engines": {
-    "node": ">=20"
-  },
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    }
-  },
-  "scripts": {
-    "clean": "npx rimraf ./dist",
-    "build": "tsc -p tsconfig.json",
-    "prepack": "npm run build",
-    "test": "node --import tsx --test src/core-activity.spec.ts src/bot-application.spec.ts src/remove-mention-middleware.spec.ts src/teams-activity.spec.ts src/bot-auth-middleware.spec.ts src/typing-activity.spec.ts src/security-fixes.spec.ts src/p2-fixes.spec.ts"
-  },
   "files": [
-    "dist/",
-    "README.md"
+    "dist"
   ],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run"
+  },
   "dependencies": {
-    "@azure/msal-node": "^5.1.2",
-    "axios": "^1.15.0",
-    "debug": "^4.4.3",
-    "jose": "^6.2.2"
+    "jsonwebtoken": "^9.0.0",
+    "jwks-rsa": "^3.0.0"
+  },
+  "devDependencies": {
+    "@types/jsonwebtoken": "^9.0.0",
+    "@types/node": "^20.0.0"
   }
 }

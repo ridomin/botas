@@ -14,3 +14,15 @@ __pycache__/
 bin/
 obj/
 .user
+.venv/
+node_modules/
+
+# Go binaries
+go/main
+go/samples/**/main
+*.exe
+*.test
+*.prof
+*.out
+go.work
+go.work.sum
