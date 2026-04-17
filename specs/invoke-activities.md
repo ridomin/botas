@@ -180,9 +180,22 @@ When `activity.type === "invoke"` and NO handlers (specific or catch-all) are re
 activity.type = "invoke"
 activity.name = "unknown/operation"
 
-→ No dispatch (silently ignored per botas protocol)
+→ No invoke handler registered
 → HTTP Response: 200, body {}
 ```
+
+When specific invoke handlers ARE registered but the incoming `activity.name` does NOT match any of them (and no catch-all is set):
+
+```
+activity.type = "invoke"
+activity.name = "unknown/operation"
+
+→ No matching specific handler
+→ Return InvokeResponse { status: 501 }
+→ HTTP Response: status 501, no body
+```
+
+> **Rationale**: When a bot has registered specific invoke handlers, an unrecognized invoke name likely indicates a misconfiguration or version mismatch — returning 501 signals this clearly. When no invoke handlers exist at all, the bot simply doesn't handle invoke activities, so the default 200 `{}` applies.
 
 ### 4. Conflict Prevention
 
@@ -244,6 +257,10 @@ Middleware can:
 - Inspect/modify invoke activities before handler dispatch
 - Short-circuit by NOT calling `next()` (must handle HTTP response manually)
 - Perform post-processing after handler execution
+
+### CatchAll Handler Interaction
+
+When a CatchAll handler (`OnActivity` / `onActivity` / `on_activity`) is set, **invoke activities bypass invoke-specific dispatch** and are routed to the CatchAll handler like all other activity types. The CatchAll handler replaces ALL dispatch — including invoke dispatch by `activity.name`. If the CatchAll handler needs to return an `InvokeResponse`, it must do so via the framework's invoke response mechanism (e.g., returning from `processBody` or setting the response on the HTTP context).
 
 ---
 
@@ -373,7 +390,8 @@ app.onInvoke('task/fetch', async (ctx) => {
 | Return type | `InvokeResponse` class | `InvokeResponse` interface | `InvokeResponse` dataclass |
 | Response fields | `Status: int, Body: object?` | `status: number, body?: any` | `status: int, body: Any \| None` |
 | Conflict detection | Exception on registration | Exception on registration | Exception on registration |
-| Default response (no handler) | HTTP 200, body `{}` | HTTP 200, body `{}` | HTTP 200, body `{}` |
+| Default response (no invoke handlers at all) | HTTP 200, body `{}` | HTTP 200, body `{}` | HTTP 200, body `{}` |
+| Unmatched name (handlers exist, no match) | HTTP 501 | HTTP 501 | HTTP 501 |
 
 ---
 
