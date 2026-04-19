@@ -1,0 +1,12 @@
+[project]
+name = "botas-fastapi"
+version = "1.0.0"
+requires-python = ">=3.10"
+
+dependencies = [
+    "botas",
+    "fastapi>=0.109.0",
+]
+
+[tool.ruff]
+line-length = 120
