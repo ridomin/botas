@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import os
+import time
 from typing import Any
 
 import httpx
@@ -19,6 +21,39 @@ _VALID_ISSUER_PREFIX = "https://sts.windows.net/"
 # Per-metadata-URL JWKS cache: {metadata_url: {"jwks_uri": str, "keys": list}}
 _jwks_cache: dict[str, dict[str, Any]] = {}
 _jwks_lock = asyncio.Lock()
+
+# Rate limiting for failed token validations (specs/inbound-auth.md:97)
+_FAILURE_COOLDOWN_MS = 5_000
+_failure_cache: dict[str, float] = {}
+
+
+def _hash_token(token: str) -> str:
+    """Hash token for rate limiting cache (first 16 chars of SHA256)."""
+    return hashlib.sha256(token.encode()).hexdigest()[:16]
+
+
+def _is_rate_limited(token: str) -> bool:
+    """Check if token was recently failed (within cooldown period)."""
+    hash_key = _hash_token(token)
+    failed_at = _failure_cache.get(hash_key)
+    if failed_at is not None:
+        current_time = time.monotonic() * 1000  # Convert to ms
+        if current_time - failed_at < _FAILURE_COOLDOWN_MS:
+            return True
+    return False
+
+
+async def _record_failure(token: str) -> None:
+    """Record token failure for rate limiting, with periodic cleanup."""
+    hash_key = _hash_token(token)
+    current_time = time.monotonic() * 1000
+    _failure_cache[hash_key] = current_time
+
+    # Periodic cleanup when cache is large
+    if len(_failure_cache) > 1000:
+        for key, timestamp in list(_failure_cache.items()):
+            if current_time - timestamp >= _FAILURE_COOLDOWN_MS:
+                del _failure_cache[key]
 
 
 class BotAuthError(Exception):
@@ -120,6 +155,11 @@ async def validate_bot_token(auth_header: str | None, app_id: str | None = None)
 
     token = auth_header[len("Bearer ") :]
 
+    # Rate limit: reject recently-failed tokens immediately (specs/inbound-auth.md:97)
+    if _is_rate_limited(token):
+        _logger.debug("Token rejected: rate limited (recent failure)")
+        raise BotAuthError("Too many failed validation attempts")
+
     try:
         unverified = jwt.get_unverified_header(token)
     except jwt.exceptions.DecodeError as exc:
@@ -136,6 +176,7 @@ async def validate_bot_token(auth_header: str | None, app_id: str | None = None)
     allowed_issuers = _valid_issuers(tid)
     if not iss or iss not in allowed_issuers:
         _logger.warning("Token rejected: untrusted issuer %r", iss)
+        await _record_failure(token)
         raise BotAuthError("Untrusted token issuer")
 
     metadata_url = _resolve_metadata_url(iss, tid)
@@ -143,6 +184,7 @@ async def validate_bot_token(auth_header: str | None, app_id: str | None = None)
 
     if not _is_allowed_metadata_url(metadata_url):
         _logger.warning("Rejected disallowed metadata URL: %s", metadata_url)
+        await _record_failure(token)
         raise BotAuthError("Untrusted token issuer")
 
     keys = await _get_jwks(metadata_url)
@@ -154,6 +196,7 @@ async def validate_bot_token(auth_header: str | None, app_id: str | None = None)
         matching = next((k for k in keys if k.get("kid") == kid), None)
 
     if matching is None:
+        await _record_failure(token)
         raise BotAuthError(f"No JWKS key found for kid={kid!r}")
 
     public_key = RSAAlgorithm.from_jwk(json.dumps(matching))
@@ -171,10 +214,13 @@ async def validate_bot_token(auth_header: str | None, app_id: str | None = None)
     except jwt.ExpiredSignatureError as exc:
         raise BotAuthError("Token has expired") from exc
     except jwt.InvalidAudienceError as exc:
+        await _record_failure(token)
         raise BotAuthError("Invalid audience") from exc
     except jwt.InvalidIssuerError as exc:
+        await _record_failure(token)
         raise BotAuthError("Invalid issuer") from exc
     except jwt.PyJWTError as exc:
+        await _record_failure(token)
         raise BotAuthError(f"Token validation failed: {exc}") from exc
 
     _logger.debug("Token validated successfully")
