@@ -48,6 +48,8 @@ The following issuers MUST be accepted:
 
 Where `{tenantId}` is the Azure AD tenant ID from the token's `tid` claim.
 
+> **Implementation Note**: The token's `tid` claim may be empty (e.g., for Bot Framework tokens). In this case, the issuer validation should fall back to accepting `https://api.botframework.com` without requiring a tenant match.
+
 ### 3. Signature (JWKS)
 
 Token signatures MUST be verified against public keys retrieved from the appropriate OpenID configuration endpoint (see below).
@@ -129,6 +131,91 @@ All language implementations MUST support the same authentication features. This
 | Auth bypass when `CLIENT_ID` not configured | ✅ | ✅ | ✅ | ✅ |
 
 > **Note**: .NET uses MSAL's built-in JWT validation which handles many of these features natively. Node.js and Python implement validation manually. When adding a new language port, ensure all features in this table are covered.
+
+---
+
+## Outbound Authentication
+
+Bots also make outbound calls to the Bot Framework API (e.g., sending activities). These calls require app-only tokens (client credentials flow).
+
+### Token Acquisition
+
+The bot acquires tokens using MSAL (Microsoft Authentication Library):
+
+```
+1. Read CLIENT_ID, CLIENT_SECRET, TENANT_ID from configuration
+2. Create ConfidentialClientApplication with MSAL
+3. AcquireTokenForClient(scope) → gets access token
+4. Attach as Bearer token to outbound requests
+```
+
+### Supported Token Sources
+
+| Token Source | Authority | Scope |
+|------------|-----------|-------|
+| Azure AD (Entra ID) | `https://login.microsoftonline.com/{tenantId}/v2.0` | `https://api.botframework.com/.default` |
+| Bot Framework | `https://login.botframework.com/` | `https://api.botframework.com/.default` |
+
+Both token sources are supported because:
+- Some bots use Azure AD directly (Entra ID)
+- Some bots use Teams-managed registration via Bot Framework
+
+### .NET Implementation
+
+The `BotAuthenticationHandler` (in `dotnet/src/Botas/BotAuthenticationHandler.cs`) uses MSAL directly:
+
+```csharp
+IConfidentialClientApplication app = ConfidentialClientApplicationBuilder
+    .Create(clientId)
+    .WithClientSecret(clientSecret)
+    .WithAuthority($"https://login.microsoftonline.com/{tenantId}/v2.0")
+    .Build();
+
+AuthenticationResult result = await app
+    .AcquireTokenForClient(new[] { scope })
+    .ExecuteAsync(cancellationToken);
+```
+
+---
+
+## E2E Tests
+
+The E2E tests validate both inbound token validation and outbound token acquisition.
+
+### Test Setup
+
+- Bot runs externally on port 3978 with real Azure AD credentials
+- Tests send authenticated requests and verify bot responds correctly
+- Tests verify the bot can send outbound activities back
+
+### Test Files
+
+- `e2e/dotnet/ExternalEchoBotTests.cs` — validates inbound auth + outbound calls
+- `e2e/dotnet/ExternalInvokeTests.cs` — validates invoke activities
+
+### Running Tests
+
+```bash
+# Start bot
+cd dotnet/samples/TestBot && dotnet run
+
+# Run external tests (requires bot running)
+dotnet test e2e/dotnet --filter "FullyQualifiedName~DotNetEchoBotTests"
+```
+
+### Test Coverage
+
+| Test | Description |
+|------|------------|
+| Bot_EchoesMessage | Validates inbound JWT validation + outbound activity callback |
+| Bot_ReturnsOk_ForUnknownActivityType | Validates unknown activity types pass through |
+| Bot_Returns401_WithoutToken | Validates missing token returns 401 |
+
+### Known Issues
+
+- **Issue #2**: External E2E tests failed with IDW10503 error before fix
+- **Fix**: Use MSAL directly instead of Microsoft.Identity.Web for token acquisition
+- Both Bot Framework and Entra tokens are now accepted
 
 ---
 
