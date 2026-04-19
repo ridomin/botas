@@ -59,7 +59,11 @@ public static class BotApplicationConfigurationExtensions
         });
 
         services.AddHttpClient(ConversationHttpClientName)
-            .ConfigureHttpClient(c => c.Timeout = TimeSpan.FromSeconds(30));
+            .ConfigureHttpClient(c => c.Timeout = TimeSpan.FromSeconds(30))
+            .AddHttpMessageHandler(sp => new BotAuthenticationHandler(
+                sp.GetRequiredService<IConfiguration>(),
+                sp.GetRequiredService<ILogger<BotAuthenticationHandler>>(),
+                sp.GetRequiredService<AgentScopeProvider>().Scope));
 
         static ConversationClient ConversationClientFactory(IServiceProvider provider, object serviceKey) => new(
             provider.GetRequiredService<IHttpClientFactory>().CreateClient(ConversationHttpClientName),

@@ -1,57 +1,55 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using Microsoft.Identity.Abstractions;
-using Microsoft.Identity.Web;
+using Microsoft.Identity.Client;
 using System.Net.Http.Headers;
 
 namespace Botas;
 
-/// <summary>
-/// HTTP message handler that automatically acquires and attaches authentication tokens
-/// for Bot Framework API calls using app-only (client credentials) token acquisition.
-/// </summary>
-/// <remarks>
-/// Initializes a new instance of the <see cref="BotAuthenticationHandler"/> class.
-/// </remarks>
-/// <param name="authorizationHeaderProvider">The authorization header provider for acquiring tokens.</param>
-/// <param name="logger">The logger instance.</param>
-/// <param name="scope">The scope for the token request.</param>
-/// <param name="aadConfigSectionName">The configuration section name for Azure AD settings.</param>
 internal class BotAuthenticationHandler(
-    IAuthorizationHeaderProvider authorizationHeaderProvider,
+    IConfiguration configuration,
     ILogger<BotAuthenticationHandler> logger,
-    string scope,
-    string aadConfigSectionName = "AzureAd") : DelegatingHandler
+    string scope) : DelegatingHandler
 {
-    private readonly IAuthorizationHeaderProvider _authorizationHeaderProvider = authorizationHeaderProvider ?? throw new ArgumentNullException(nameof(authorizationHeaderProvider));
+    private readonly IConfiguration _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
     private readonly ILogger<BotAuthenticationHandler> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     private readonly string _scope = scope ?? throw new ArgumentNullException(nameof(scope));
-    private readonly string _aadConfigSectionName = aadConfigSectionName ?? throw new ArgumentNullException(nameof(aadConfigSectionName));
+    
+    private IConfidentialClientApplication? _app;
+    private string? _accessToken;
 
-    /// <inheritdoc/>
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
-        string token = await GetAuthorizationHeaderAsync(cancellationToken).ConfigureAwait(false);
-
-        string tokenValue = token.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
-            ? token["Bearer ".Length..]
-            : token;
-
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenValue);
-
+        string token = await GetAccessTokenAsync(cancellationToken).ConfigureAwait(false);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         return await base.SendAsync(request, cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task<string> GetAuthorizationHeaderAsync(CancellationToken cancellationToken)
+    private async Task<string> GetAccessTokenAsync(CancellationToken cancellationToken)
     {
-        AuthorizationHeaderProviderOptions options = new()
+        // Return cached token if still valid
+        if (!string.IsNullOrEmpty(_accessToken))
         {
-            AcquireTokenOptions = new AcquireTokenOptions()
-            {
-                AuthenticationOptionsName = _aadConfigSectionName,
-            }
-        };
+            return _accessToken;
+        }
+
+        string clientId = _configuration["AzureAd:ClientId"] ?? throw new InvalidOperationException("AzureAd:ClientId not configured");
+        string? clientSecret = _configuration["AzureAd:ClientSecret"] ?? _configuration["AzureAd:ClientCredentials:0:ClientSecret"] ?? throw new InvalidOperationException("AzureAd:ClientSecret not configured");
+        string tenantId = _configuration["AzureAd:TenantId"] ?? throw new InvalidOperationException("AzureAd:TenantId not configured");
+
+        _app ??= ConfidentialClientApplicationBuilder
+            .Create(clientId)
+            .WithClientSecret(clientSecret)
+            .WithAuthority($"https://login.microsoftonline.com/{tenantId}/v2.0")
+            .Build();
 
         _logger.LogDebug("Acquiring app-only token for scope: {Scope}", _scope);
-        return await _authorizationHeaderProvider.CreateAuthorizationHeaderForAppAsync(_scope, options, cancellationToken).ConfigureAwait(false);
+        
+        AuthenticationResult result = await _app
+            .AcquireTokenForClient(new[] { _scope })
+            .ExecuteAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        _accessToken = result.AccessToken;
+        return _accessToken;
     }
 }
