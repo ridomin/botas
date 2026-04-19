@@ -74,6 +74,7 @@ export class BotApplication {
   private readonly middlewares: TurnMiddleware[] = []
   private readonly handlers = new Map<string, CoreActivityHandler>()
   private readonly invokeHandlers = new Map<string, InvokeActivityHandler>()
+  private invokeCatchAll?: InvokeActivityHandler
   private readonly tokenManager: TokenManager
 
   constructor (options: BotApplicationOptions = {}) {
@@ -128,8 +129,18 @@ export class BotApplication {
    * @param handler - Async function that returns an {@link InvokeResponse}.
    * @returns `this` for method chaining.
    */
-  onInvoke (name: string, handler: InvokeActivityHandler): this {
-    this.invokeHandlers.set(name, handler)
+  onInvoke (name: string | InvokeActivityHandler, handler?: InvokeActivityHandler): this {
+    if (typeof name === 'function') {
+      if (this.invokeHandlers.size > 0) {
+        throw new Error('Cannot register catch-all invoke handler when specific invoke handlers already exist')
+      }
+      this.invokeCatchAll = name
+    } else {
+      if (this.invokeCatchAll) {
+        throw new Error('Cannot register specific invoke handler when catch-all invoke handler already exists')
+      }
+      this.invokeHandlers.set(name, handler!)
+    }
     return this
   }
 
@@ -211,6 +222,18 @@ export class BotApplication {
   /** @internal Dispatch the activity to the CatchAll or per-type handler. */
   protected async handleCoreActivityAsync (context: TurnContext): Promise<InvokeResponse | undefined> {
     if (context.activity.type === 'invoke') {
+      if (this.onActivity) {
+        try {
+          await this.onActivity(context)
+        } catch (err) {
+          throw new BotHandlerException(
+            'CatchAll handler threw an error',
+            err,
+            context.activity
+          )
+        }
+        return { status: 200 }
+      }
       return this.dispatchInvokeAsync(context)
     }
     const handler = this.onActivity ?? this.handlers.get(context.activity.type)
@@ -229,6 +252,22 @@ export class BotApplication {
   }
 
   private async dispatchInvokeAsync (context: TurnContext): Promise<InvokeResponse> {
+    if (this.invokeCatchAll) {
+      try {
+        return await this.invokeCatchAll(context)
+      } catch (err) {
+        throw new BotHandlerException(
+          'Catch-all invoke handler threw an error',
+          err,
+          context.activity
+        )
+      }
+    }
+
+    if (this.invokeHandlers.size === 0) {
+      return { status: 200 }
+    }
+
     const name = context.activity.name
     const handler = name ? this.invokeHandlers.get(name) : undefined
     if (!handler) {

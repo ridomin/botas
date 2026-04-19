@@ -3,9 +3,12 @@
 
 import { BotApp } from 'botas-express'
 
+console.log('Starting Node.js test-bot...')
+
 const app = new BotApp()
 
 app.on('message', async (ctx) => {
+  console.log('📨 Received message:', ctx.activity.text)
   const text = (ctx.activity.text ?? '').trim()
   if (text.toLowerCase() === 'card') {
     await ctx.send({
@@ -34,6 +37,7 @@ app.on('message', async (ctx) => {
 })
 
 app.onInvoke('adaptiveCard/action', async (ctx) => {
+  console.log('🔔 Invoke: adaptiveCard/action')
   return {
     status: 200,
     body: {
@@ -51,6 +55,7 @@ app.onInvoke('adaptiveCard/action', async (ctx) => {
 })
 
 app.onInvoke('test/echo', async (ctx) => {
+  console.log('🔔 Invoke: test/echo')
   return { status: 200, body: ctx.activity.value }
 })
 

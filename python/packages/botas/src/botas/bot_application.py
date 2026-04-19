@@ -70,6 +70,7 @@ class BotApplication:
         self._middlewares: list[TurnMiddleware] = []
         self._handlers: dict[str, ActivityHandler] = {}
         self._invoke_handlers: dict[str, InvokeActivityHandler] = {}
+        self._invoke_catch_all: InvokeActivityHandler | None = None
         self.on_activity: ActivityHandler | None = None
 
     @property
@@ -108,7 +109,7 @@ class BotApplication:
 
     def on_invoke(
         self,
-        name: str,
+        name: str | InvokeActivityHandler | None = None,
         handler: InvokeActivityHandler | None = None,
     ) -> Any:
         """Register a handler for an invoke activity by its ``activity.name`` sub-type.
@@ -123,15 +124,35 @@ class BotApplication:
 
             @bot.on_invoke("adaptiveCard/action")
             async def my_handler(ctx): ...
+
+        Can also register a catch-all invoke handler::
+
+            bot.on_invoke(catch_all_handler)
+
+            @bot.on_invoke()
+            async def catch_all(ctx): ...
         """
+        if callable(name):
+            if self._invoke_handlers:
+                raise ValueError(
+                    "Cannot register catch-all invoke handler when specific invoke handlers already exist"
+                )
+            self._invoke_catch_all = name
+            return name
+
         if handler is None:
 
             def decorator(fn: InvokeActivityHandler) -> InvokeActivityHandler:
-                self._invoke_handlers[name] = fn
+                self._invoke_handlers[name] = fn  # type: ignore[arg-type]
                 return fn
 
             return decorator
-        self._invoke_handlers[name] = handler
+
+        if self._invoke_catch_all:
+            raise ValueError(
+                "Cannot register specific invoke handler when catch-all invoke handler already exists"
+            )
+        self._invoke_handlers[name] = handler  # type: ignore[arg-type]
         return self
 
     async def process_body(self, body: str) -> InvokeResponse | None:
@@ -172,6 +193,16 @@ class BotApplication:
 
     async def _handle_activity_async(self, context: TurnContext) -> InvokeResponse | None:
         if context.activity.type == "invoke":
+            if self.on_activity:
+                try:
+                    await self.on_activity(context)
+                except Exception as exc:
+                    raise BotHandlerException(
+                        "CatchAll handler threw an error",
+                        exc,
+                        context.activity,
+                    ) from exc
+                return InvokeResponse(status=200)
             return await self._dispatch_invoke_async(context)
         handler = self.on_activity or self._handlers.get(context.activity.type)
         if handler is None:
@@ -188,6 +219,20 @@ class BotApplication:
 
     async def _dispatch_invoke_async(self, context: TurnContext) -> InvokeResponse:
         name = context.activity.name
+
+        if self._invoke_catch_all:
+            try:
+                return await self._invoke_catch_all(context)
+            except Exception as exc:
+                raise BotHandlerException(
+                    "Catch-all invoke handler threw an error",
+                    exc,
+                    context.activity,
+                ) from exc
+
+        if not self._invoke_handlers:
+            return InvokeResponse(status=200)
+
         handler = self._invoke_handlers.get(name) if name else None
         if handler is None:
             return InvokeResponse(status=501)

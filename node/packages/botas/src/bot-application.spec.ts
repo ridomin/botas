@@ -267,14 +267,16 @@ describe('BotApplication', () => {
       assert.deepEqual(result, { status: 200, body: { ok: true } })
     })
 
-    it('returns 501 when no handler registered for invoke name', async () => {
+    it('returns 501 when handler exists but name not matched', async () => {
       const bot = new BotApplication()
+      bot.onInvoke('other/action', async () => ({ status: 200 }))
       const result = await bot.processBody(makeBody({ type: 'invoke', name: 'task/fetch' }))
       assert.deepEqual(result, { status: 501 })
     })
 
     it('returns 501 when invoke activity has no name', async () => {
       const bot = new BotApplication()
+      bot.onInvoke('task/fetch', async () => ({ status: 200 }))
       const result = await bot.processBody(makeBody({ type: 'invoke' }))
       assert.deepEqual(result, { status: 501 })
     })
@@ -327,6 +329,31 @@ describe('BotApplication', () => {
 
       assert.equal(response.status, 200)
       assert.deepEqual(json, { statusCode: 200, type: 'application/vnd.microsoft.card.adaptive' })
+    })
+
+    it('returns 200 {} when no invoke handlers registered', async () => {
+      const bot = new BotApplication()
+      const result = await bot.processBody(makeBody({ type: 'invoke', name: 'adaptiveCard/action' }))
+      assert.deepEqual(result, { status: 200 })
+    })
+
+    it('invoke activities route to onActivity when set', async () => {
+      const bot = new BotApplication()
+      const received: string[] = []
+      bot.onActivity = async (ctx) => { received.push(ctx.activity.type) }
+      bot.onInvoke('adaptiveCard/action', async () => {
+        received.push('invoke handler')
+        return { status: 200 }
+      })
+
+      await bot.processBody(makeBody({ type: 'invoke', name: 'adaptiveCard/action' }))
+      assert.deepEqual(received, ['invoke'])
+    })
+
+    it('throws when registering specific and catch-all both', async () => {
+      const bot = new BotApplication()
+      bot.onInvoke('adaptiveCard/action', async () => ({ status: 200 }))
+      assert.throws(() => bot.onInvoke(async () => ({ status: 200 })), /catch-all/)
     })
   })
 })

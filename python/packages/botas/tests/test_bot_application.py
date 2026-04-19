@@ -362,6 +362,11 @@ class TestResourceCleanup:
 
 
 class TestOnInvoke:
+    @pytest.fixture(autouse=True)
+    def mock_validate(self):
+        with patch("botas.bot_application._validate_service_url"):
+            yield
+
     async def test_dispatches_invoke_to_handler_by_name(self):
         from botas.bot_application import InvokeResponse
 
@@ -380,14 +385,22 @@ class TestOnInvoke:
         assert result.status == 200
         assert result.body == {"ok": True}
 
-    async def test_returns_501_when_no_handler_for_name(self):
+    async def test_returns_200_when_no_invoke_handlers(self):
         bot = BotApplication()
+        result = await bot.process_body(_make_body(type="invoke", name="task/fetch"))
+        assert result is not None
+        assert result.status == 200
+
+    async def test_returns_501_when_handler_exists_but_name_not_matched(self):
+        bot = BotApplication()
+        bot.on_invoke("other/action", lambda ctx: InvokeResponse(status=200))
         result = await bot.process_body(_make_body(type="invoke", name="task/fetch"))
         assert result is not None
         assert result.status == 501
 
     async def test_returns_501_when_invoke_has_no_name(self):
         bot = BotApplication()
+        bot.on_invoke("task/fetch", lambda ctx: InvokeResponse(status=200))
         result = await bot.process_body(_make_body(type="invoke"))
         assert result is not None
         assert result.status == 501
@@ -452,3 +465,54 @@ class TestOnInvoke:
 
         await bot.process_body(_make_body(type="invoke", name="adaptiveCard/action"))
         assert len(received) == 1
+
+    async def test_invoke_activities_route_to_on_activity(self):
+        from botas.bot_application import InvokeResponse
+        bot = BotApplication()
+        received: list[str] = []
+
+        async def on_activity_handler(ctx: TurnContext) -> None:
+            received.append(ctx.activity.type)
+
+        async def invoke_handler(ctx: TurnContext) -> InvokeResponse:
+            received.append("invoke handler")
+            return InvokeResponse(status=200)
+
+        bot.on_activity = on_activity_handler
+        bot.on_invoke("adaptiveCard/action", invoke_handler)
+
+        result = await bot.process_body(_make_body(type="invoke", name="adaptiveCard/action"))
+        assert result is not None
+        assert result.status == 200
+        assert received == ["invoke"]
+
+    async def test_on_invoke_catch_all(self):
+        from botas.bot_application import InvokeResponse
+        bot = BotApplication()
+        received: list[TurnContext] = []
+
+        async def catch_all(ctx: TurnContext) -> InvokeResponse:
+            received.append(ctx)
+            return InvokeResponse(status=200, body={"caught": True})
+
+        bot.on_invoke(catch_all)
+        result = await bot.process_body(_make_body(type="invoke", name="some/action"))
+
+        assert result is not None
+        assert result.status == 200
+        assert result.body == {"caught": True}
+        assert len(received) == 1
+
+    async def test_on_invoke_raises_when_specific_and_catch_all_both(self):
+        from botas.bot_application import InvokeResponse
+        bot = BotApplication()
+
+        async def catch_all(ctx: TurnContext) -> InvokeResponse:
+            return InvokeResponse(status=200)
+
+        bot.on_invoke(catch_all)
+
+        with pytest.raises(ValueError) as exc_info:
+            bot.on_invoke("specific/action", lambda ctx: InvokeResponse(status=200))
+
+        assert "catch-all" in str(exc_info.value)

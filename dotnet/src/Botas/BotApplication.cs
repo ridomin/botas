@@ -41,6 +41,7 @@ public class BotApplication
     private readonly TurnMiddleware _turnMiddleware;
     private readonly Dictionary<string, Func<TurnContext, CancellationToken, Task>> _handlers = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Func<TurnContext, CancellationToken, Task<InvokeResponse>>> _invokeHandlers = new(StringComparer.OrdinalIgnoreCase);
+    private Func<TurnContext, CancellationToken, Task<InvokeResponse>>? _invokeCatchAll;
 
     public BotApplication()
     {
@@ -83,7 +84,25 @@ public class BotApplication
     /// </summary>
     public BotApplication OnInvoke(string name, Func<TurnContext, CancellationToken, Task<InvokeResponse>> handler)
     {
+        if (_invokeCatchAll is not null)
+        {
+            throw new InvalidOperationException("Cannot register specific invoke handler when catch-all invoke handler already exists");
+        }
         _invokeHandlers[name] = handler;
+        return this;
+    }
+
+    /// <summary>
+    /// Register a catch-all handler for invoke activities.
+    /// This handler receives all invoke activities regardless of <c>activity.Name</c>.
+    /// </summary>
+    public BotApplication OnInvoke(Func<TurnContext, CancellationToken, Task<InvokeResponse>> handler)
+    {
+        if (_invokeHandlers.Count > 0)
+        {
+            throw new InvalidOperationException("Cannot register catch-all invoke handler when specific invoke handlers already exist");
+        }
+        _invokeCatchAll = handler;
         return this;
     }
 
@@ -123,11 +142,22 @@ public class BotApplication
 
                 if (string.Equals(activity.Type, "invoke", StringComparison.OrdinalIgnoreCase))
                 {
-                    Task<InvokeResponse> invokeCallback(TurnContext ctx, CancellationToken ct) => DispatchInvokeHandler(ctx, ct);
-                    await _turnMiddleware.RunPipeline(context, async (ctx, ct) =>
+                    if (OnActivity is not null)
                     {
-                        invokeResponse = await invokeCallback(ctx, ct).ConfigureAwait(false);
-                    }, 0, cancellationToken).ConfigureAwait(false);
+                        await _turnMiddleware.RunPipeline(context, async (ctx, ct) =>
+                        {
+                            invokeResponse = new InvokeResponse { Status = 200 };
+                            await OnActivity(ctx, ct).ConfigureAwait(false);
+                        }, 0, cancellationToken).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        Task<InvokeResponse> invokeCallback(TurnContext ctx, CancellationToken ct) => DispatchInvokeHandler(ctx, ct);
+                        await _turnMiddleware.RunPipeline(context, async (ctx, ct) =>
+                        {
+                            invokeResponse = await invokeCallback(ctx, ct).ConfigureAwait(false);
+                        }, 0, cancellationToken).ConfigureAwait(false);
+                    }
                 }
                 else
                 {
@@ -207,6 +237,24 @@ public class BotApplication
     internal async Task<InvokeResponse> DispatchInvokeHandler(TurnContext context, CancellationToken cancellationToken)
     {
         var name = context.Activity.Name;
+
+        if (_invokeCatchAll is not null)
+        {
+            try
+            {
+                return await _invokeCatchAll(context, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                throw new BotHandlerException("Catch-all invoke handler threw an error", ex, context.Activity);
+            }
+        }
+
+        if (_invokeHandlers.Count == 0)
+        {
+            return new InvokeResponse { Status = 200 };
+        }
+
         if (name is not null && _invokeHandlers.TryGetValue(name, out var handler))
         {
             try

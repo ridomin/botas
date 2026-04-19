@@ -30,9 +30,11 @@ namespace Botas.Tests
         }
 
         [Fact]
-        public async Task DispatchInvoke_Returns501_WhenNoHandlerRegistered()
+        public async Task DispatchInvoke_Returns501_WhenNoHandlerRegistered_ButHandlersExist()
         {
             var bot = new BotApplication();
+            bot.OnInvoke("some/other", (ctx, ct) =>
+                Task.FromResult(new InvokeResponse { Status = 200 }));
             var activity = MakeInvokeActivity("task/fetch");
             var context = new TurnContext(bot, activity);
 
@@ -42,7 +44,7 @@ namespace Botas.Tests
         }
 
         [Fact]
-        public async Task DispatchInvoke_Returns501_WhenActivityHasNoName()
+        public async Task DispatchInvoke_Returns200_WhenNoNameAndNoHandlers()
         {
             var bot = new BotApplication();
             var activity = MakeInvokeActivity(name: null);
@@ -50,7 +52,7 @@ namespace Botas.Tests
 
             var response = await bot.DispatchInvokeHandler(context, CancellationToken.None);
 
-            Assert.Equal(501, response.Status);
+            Assert.Equal(200, response.Status);
         }
 
         [Fact]
@@ -121,6 +123,33 @@ namespace Botas.Tests
             var result = bot.OnInvoke("task/fetch", (ctx, ct) =>
                 Task.FromResult(new InvokeResponse { Status = 200 }));
             Assert.Same(bot, result);
+        }
+
+        [Fact]
+        public async Task DispatchInvoke_Returns200EmptyJson_WhenNoInvokeHandlersRegistered()
+        {
+            var bot = new BotApplication();
+            var activity = MakeInvokeActivity("adaptiveCard/action");
+            var context = new TurnContext(bot, activity);
+
+            var response = await bot.DispatchInvokeHandler(context, CancellationToken.None);
+
+            Assert.Equal(200, response.Status);
+            Assert.Null(response.Body);
+        }
+
+        [Fact]
+        public async Task OnInvoke_SpecificPlusCatchAll_Throws()
+        {
+            var bot = new BotApplication();
+            bot.OnInvoke("task/fetch", (ctx, ct) =>
+                Task.FromResult(new InvokeResponse { Status = 200 }));
+
+            var ex = Assert.Throws<InvalidOperationException>(() =>
+                bot.OnInvoke((ctx, ct) =>
+                    Task.FromResult(new InvokeResponse { Status = 200 })));
+
+            Assert.Contains("catch-all", ex.Message);
         }
     }
 }
