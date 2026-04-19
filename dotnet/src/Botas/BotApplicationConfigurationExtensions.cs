@@ -38,6 +38,17 @@ public static class BotApplicationConfigurationExtensions
         {
             IConfiguration configuration = services.BuildServiceProvider().GetRequiredService<IConfiguration>();
             configuration.GetSection(aadConfigSectionName).Bind(options);
+            
+            // Ensure authority is configured for client credentials flow
+            string? instance = options.Instance;
+            string? tenantId = options.TenantId;
+            if (!string.IsNullOrEmpty(instance) && !string.IsNullOrEmpty(tenantId))
+            {
+                if (!options.Authority?.Contains(instance) ?? true)
+                {
+                    options.Authority = $"{instance}/{tenantId}/v2.0";
+                }
+            }
         });
 
         services.AddSingleton<AgentScopeProvider>(sp =>
@@ -48,19 +59,14 @@ public static class BotApplicationConfigurationExtensions
         });
 
         services.AddHttpClient(ConversationHttpClientName)
-            .ConfigureHttpClient(c => c.Timeout = TimeSpan.FromSeconds(30))
-            .AddHttpMessageHandler(sp => new BotAuthenticationHandler(
-                sp.GetRequiredService<IAuthorizationHeaderProvider>(),
-                sp.GetRequiredService<ILogger<BotAuthenticationHandler>>(),
-                sp.GetRequiredService<AgentScopeProvider>().Scope,
-                aadConfigSectionName));
+            .ConfigureHttpClient(c => c.Timeout = TimeSpan.FromSeconds(30));
 
         static ConversationClient ConversationClientFactory(IServiceProvider provider, object serviceKey) => new(
             provider.GetRequiredService<IHttpClientFactory>().CreateClient(ConversationHttpClientName),
             provider.GetService<ILogger<ConversationClient>>()!
             );
 
-        services.AddKeyedScoped(aadConfigSectionName, ConversationClientFactory);
+        services.AddKeyedScoped<ConversationClient>(aadConfigSectionName, ConversationClientFactory);
 
         return services;
     }

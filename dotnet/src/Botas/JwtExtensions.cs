@@ -32,7 +32,8 @@ public static class JwtExtensions
         services
             .AddAuthentication()
             .AddCustomJwtBearer("Bot", "botframework.com", opts.Audience)
-            .AddCustomJwtBearer("Agent", opts.TenantId, opts.Audience);
+            .AddCustomJwtBearer("Agent", opts.TenantId, opts.Audience)
+            .AddCustomJwtBearer("AzureAd", "botframework.com", opts.Audience);
         return authenticationBuilder;
     }
 
@@ -133,19 +134,22 @@ public static class JwtExtensions
                      string issuer = token.Claims.FirstOrDefault(claim => claim.Type == "iss")?.Value!;
                      string tid = token.Claims.FirstOrDefault(claim => claim.Type == "tid")?.Value!;
 
-                     // #99: Validate issuer against known Bot Framework issuers before constructing OIDC authority
-                     if (!IsKnownIssuer(issuer, validIssuers))
-                     {
-                         context.Fail("Token issuer is not in the allowed issuers list.");
-                         return Task.CompletedTask;
-                     }
+// #99: Validate issuer against known Bot Framework issuers before constructing OIDC authority
+                      // Also allow tokens from api.botframework.com even if tenantId is not configured
+                      // This allows both AAD tenant tokens and Bot Framework tokens
+                      bool isValidBotFrameworkIssuer = issuer.Equals("https://api.botframework.com", StringComparison.OrdinalIgnoreCase);
+                      if (!IsKnownIssuer(issuer, validIssuers) && !isValidBotFrameworkIssuer)
+                      {
+                          context.Fail("Token issuer is not in the allowed issuers list.");
+                          return Task.CompletedTask;
+                      }
 
-                     string oidcAuthority;
-                     if (issuer.Equals("https://api.botframework.com", StringComparison.OrdinalIgnoreCase))
-                     {
-                         oidcAuthority = "https://login.botframework.com/v1/.well-known/openid-configuration";
-                     }
-                     else if (!string.IsNullOrEmpty(tid) && tid.Equals(tenantId, StringComparison.OrdinalIgnoreCase))
+                      string oidcAuthority;
+                      if (isValidBotFrameworkIssuer)
+                      {
+                          oidcAuthority = "https://login.botframework.com/v1/.well-known/openid-configuration";
+                      }
+                      else if (!string.IsNullOrEmpty(tid) && (!string.IsNullOrEmpty(tenantId) && tid.Equals(tenantId, StringComparison.OrdinalIgnoreCase)))
                      {
                          oidcAuthority = $"https://login.microsoftonline.com/{tenantId}/v2.0/.well-known/openid-configuration";
                      }
@@ -230,14 +234,15 @@ public static class JwtExtensions
                     string tid = token.Claims.FirstOrDefault(claim => claim.Type == "tid")?.Value!;
 
                     // #99: Validate issuer against known Bot Framework issuers before constructing OIDC authority
-                    if (!IsKnownIssuer(issuer, validIssuers))
+                    bool isBotFrameworkToken = issuer.Equals("https://api.botframework.com", StringComparison.OrdinalIgnoreCase);
+                    if (!IsKnownIssuer(issuer, validIssuers) && !isBotFrameworkToken)
                     {
                         context.Fail("Token issuer is not in the allowed issuers list.");
                         return Task.CompletedTask;
                     }
 
                     string oidcAuthority;
-                    if (issuer.Equals("https://api.botframework.com", StringComparison.OrdinalIgnoreCase))
+                    if (isBotFrameworkToken)
                     {
                         oidcAuthority = "https://login.botframework.com/v1/.well-known/openid-configuration";
                     }
