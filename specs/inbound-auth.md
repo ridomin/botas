@@ -50,7 +50,7 @@ Where `{tenantId}` is the Azure AD tenant ID from the token's `tid` claim.
 
 ### 3. Signature (JWKS)
 
-Token signatures MUST be verified against public keys retrieved from the appropriate OpenID configuration endpoint (see below).
+Token signatures MUST be verified against public keys retrieved from the appropriate OpenID configuration endpoint.
 
 ### 4. Expiration
 
@@ -60,7 +60,7 @@ Standard JWT `exp` / `nbf` claims MUST be enforced. Expired tokens MUST be rejec
 
 ## OpenID Configuration Discovery
 
-The OpenID configuration URL is selected dynamically by inspecting the **`iss` claim** of the incoming token before full validation:
+The OpenID configuration URL is selected dynamically by inspecting the **`iss` claim** of the incoming token:
 
 | Condition | OpenID Configuration URL |
 |-----------|--------------------------|
@@ -82,7 +82,7 @@ Where `{tid}` is the token's `tid` claim.
 
 ### Key Caching
 
-Implementations SHOULD cache the JWKS keys and OpenID configuration to avoid fetching on every request. A reasonable cache duration is 24 hours, with a fallback re-fetch on key-not-found errors.
+Implementations SHOULD cache the JWKS keys and OpenID configuration. A reasonable cache duration is 24 hours, with a fallback re-fetch on key-not-found errors.
 
 ### Metadata URL Validation
 
@@ -91,11 +91,11 @@ Before fetching an OpenID configuration URL, implementations MUST validate that 
 - `https://login.botframework.com/`
 - `https://login.microsoftonline.com/`
 
-This prevents SSRF attacks where a crafted token could point the bot to an attacker-controlled metadata endpoint.
+This prevents SSRF attacks.
 
 ### Rate Limiting Failed Validations
 
-Implementations SHOULD cache recently-failed tokens (by hash) for a short cooldown period (e.g., 5 seconds) to prevent repeated validation attempts for the same invalid token. This mitigates denial-of-service attacks that exploit expensive JWKS fetches and crypto operations.
+Implementations SHOULD cache recently-failed tokens (by hash) for a short cooldown period (e.g., 5 seconds) to mitigate denial-of-service attacks.
 
 ---
 
@@ -113,27 +113,7 @@ The response body is implementation-defined but SHOULD NOT leak internal details
 
 ---
 
-## Cross-Language Auth Parity
-
-All language implementations MUST support the same authentication features. This table tracks which features are required and their implementation status:
-
-| Feature | Required | .NET | Node.js | Python |
-|---------|----------|------|---------|--------|
-| JWT signature verification (JWKS) | ✅ | MSAL + middleware | `jsonwebtoken` + `jwks-rsa` | `PyJWT` + `httpx` |
-| Audience validation (3 formats) | ✅ | ✅ | ✅ | ✅ |
-| Issuer validation (`sts.windows.net` + `login.microsoftonline.com`) | ✅ | ✅ | ✅ | ✅ |
-| Dynamic metadata URL selection by `iss` | ✅ | ✅ | ✅ | ✅ |
-| Metadata URL prefix validation (SSRF defense) | ✅ | ✅ | ✅ | ✅ |
-| JWKS key caching | ✅ | Via MSAL | Via `jwks-rsa` | Manual (in-memory) |
-| Token expiration (`exp` / `nbf`) | ✅ | ✅ | ✅ | ✅ |
-| Auth bypass when `CLIENT_ID` not configured | ✅ | ✅ | ✅ | ✅ |
-
-> **Note**: .NET uses MSAL's built-in JWT validation which handles many of these features natively. Node.js and Python implement validation manually. When adding a new language port, ensure all features in this table are covered.
-
----
-
 ## References
 
 - [Protocol Spec](./protocol.md) — overall HTTP contract
 - [Bot Framework Authentication](https://learn.microsoft.com/azure/bot-service/rest-api/bot-framework-rest-connector-authentication)
-- [OpenID Configuration (Bot Framework)](https://login.botframework.com/v1/.well-known/openid-configuration)
