@@ -94,11 +94,25 @@ Any exception thrown inside a handler MUST be wrapped in a language-specific `Bo
 
 | Condition | Status | Body |
 |-----------|--------|------|
-| Success | 200 | `{}` |
+| Success (non-invoke activity) | 200 | `{}` |
+| Success (invoke activity returning `InvokeResponse`) | `invokeResponse.status` | `invokeResponse.body` if present, otherwise empty |
 | Auth failure | 401 | Implementation-defined |
 | Handler error | 500 | Implementation-defined |
 
-On success the response body MUST be `{}` (empty JSON object).
+On success for non-invoke activities, the response body MUST be `{}` (empty JSON object).
+Invoke activities are the exception: when a handler returns an `InvokeResponse`, the framework MUST translate that object into the HTTP response. See [Invoke Activities](./invoke-activities.md).
+
+### Turn Lifetime
+
+A turn begins when the bot starts processing an inbound HTTP request after authentication and input validation succeed. A turn ends when the HTTP response for that activity has been fully determined and sent.
+
+Within that lifetime:
+
+- The same `TurnContext` instance is shared across middleware and the handler.
+- `send()` / `sendTyping()` style reply helpers are valid.
+- Middleware may run code both before and after `next()`.
+
+After the turn ends, the `TurnContext` MUST be treated as expired and MUST NOT be used for additional sends.
 
 ### Input Validation
 
@@ -128,6 +142,36 @@ The `serviceUrl` from inbound activities MUST be validated against an allowlist 
 
 - HTTPS is required for all hosts except `localhost` / `127.0.0.1`.
 - The same validation MUST apply to `serviceUrl` used in outbound requests (see [Outbound: Sending Activities](#outbound-sending-activities)).
+
+**Validation algorithm (normative pseudocode):**
+
+```text
+function validateServiceUrl(serviceUrl):
+    parsed = parse URL(serviceUrl)
+    if parsing fails:
+        reject
+
+    host = lowercase(parsed.hostname)
+    scheme = lowercase(parsed.scheme)
+
+    allowed =
+        host == "localhost" or
+        host == "127.0.0.1" or
+        host endsWith ".botframework.com" or
+        host endsWith ".botframework.us" or
+        host endsWith ".botframework.cn" or
+        host endsWith ".trafficmanager.net"
+
+    if not allowed:
+        reject
+
+    if host in {"localhost", "127.0.0.1"}:
+        require scheme is "http" or "https"
+    else:
+        require scheme is "https"
+
+    accept
+```
 
 ---
 

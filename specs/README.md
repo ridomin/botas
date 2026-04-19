@@ -192,9 +192,11 @@ class BotApplication {
 
     // For Express / Node.js http.Server
     processAsync(req: IncomingMessage, res: ServerResponse): Promise<void>
+    // Writes `200 {}` for normal activities; writes the invoke status/body for invoke activities
 
     // For Hono and other response-owning frameworks
     processBody(body: string): Promise<InvokeResponse | undefined>
+    // Returns the invoke response for invoke activities; `undefined` for non-invoke activities
 
     // Proactive send
     sendActivityAsync(serviceUrl: string, conversationId: string, activity: Partial<CoreActivity>): Promise<ResourceResponse | undefined>
@@ -213,6 +215,7 @@ class BotApplication:
 
     # Process incoming activity
     async def process_body(self, body: str) -> InvokeResponse | None
+    # Returns the invoke response for invoke activities; None for non-invoke activities
 
     # Send outbound activity
     async def send_activity_async(
@@ -293,6 +296,7 @@ class TurnContext:
     
     activity: CoreActivity
     """The incoming activity being processed."""
+    # In Python, JSON field "from" is exposed as activity.from_account.
     
     app: BotApplication
     """The BotApplication instance processing this turn."""
@@ -343,7 +347,7 @@ Returns `Promise<void>` / `Task` on success. Typing activities are ephemeral sig
 
 #### Constraints
 
-- `send()` and `sendTyping()` are only valid during the lifetime of the turn (i.e. while the handler or middleware is executing).
+- `send()` and `sendTyping()` are only valid during the lifetime of the turn (i.e. from HTTP request entry until the response is sent, while middleware/handler code is executing).
 - Multiple calls to `send()` within a single turn are allowed (e.g. sending multiple replies).
 - `send()` and `sendTyping()` from middleware are allowed both before and after calling `next()`.
 
@@ -444,7 +448,7 @@ class BotHandlerException : Exception {
 | Resource cleanup | Handled by DI container | No explicit cleanup needed | `async with bot:` context manager or `await bot.aclose()` |
 | Activity model | `CoreActivity` class with `[JsonExtensionData]` | `CoreActivity` interface with `properties?` dict | `CoreActivity` Pydantic model with `model_extra` |
 | Prototype pollution | Not applicable (strongly typed) | `safeJsonParse` strips dangerous keys | Not vulnerable (no prototype chain), but SHOULD strip for defense-in-depth |
-| `from` field naming | `From` (C# allows it) | `from` (JS allows it) | `from_account` (`from` is reserved in Python) |
+| `from` field naming | `From` (C# allows it) | `from` (JS allows it) | `from_account` (`from` is reserved in Python; JSON still serializes/deserializes as `"from"`) |
 
 These differences are intentional and should be preserved per language when porting.
 

@@ -159,7 +159,7 @@ async def messages(request: Request):
 
 `bot_auth_dependency()` validates the `Authorization: Bearer <token>` header against the Bot Framework JWKS endpoint. If validation fails, it raises `HTTPException(401)`.
 
-`process_body(str)` parses the activity JSON, runs the middleware pipeline and handler.
+`process_body(str)` parses the activity JSON, runs the middleware pipeline and handler, and returns an `InvokeResponse` for invoke activities or `None` for non-invoke activities.
 
 ---
 

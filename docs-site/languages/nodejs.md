@@ -165,7 +165,7 @@ server.post('/api/messages', botAuthExpress(), (req, res) => {
 
 `botAuthExpress()` validates the `Authorization: Bearer <token>` header against the Bot Framework JWKS endpoint. If validation fails, it responds with `401` before your handler ever runs.
 
-`processAsync(req, res)` reads the request body, runs the middleware pipeline and handler, then writes `200 {}` on success or `500` on error.
+`processAsync(req, res)` reads the request body, runs the middleware pipeline and handler, then writes `200 {}` for normal activities, the invoke status/body for invoke activities, or `500` on handler error.
 
 ---
 
