@@ -16,17 +16,39 @@ public class ConversationClient(HttpClient httpClient, ILogger<ConversationClien
 
     public async Task<string> SendActivityAsync(CoreActivity activity, CancellationToken cancellationToken = default)
     {
+        ValidateActivity(activity);
+        string url = $"{activity.ServiceUrl!}v3/conversations/{activity.Conversation!.Id}/activities/";
+        return await SendAsync(url, activity.ToJson(), cancellationToken);
+    }
 
-        if (activity.Type == "trace")
+    /// <summary>
+    /// Send an activity to a conversation using explicit service URL and conversation ID.
+    /// </summary>
+    public async Task<string> SendActivityAsync(string serviceUrl, string conversationId, CoreActivity activity, CancellationToken cancellationToken = default)
+    {
+        activity.ServiceUrl = serviceUrl;
+        activity.Conversation = new Conversation { Id = conversationId };
+        return await SendActivityAsync(activity, cancellationToken);
+    }
+
+    private static void ValidateActivity(CoreActivity activity)
+    {
+        ArgumentNullException.ThrowIfNull(activity);
+        if (string.IsNullOrEmpty(activity.Type))
+        {
+            throw new ArgumentException("Activity Type is required.", nameof(activity));
+        }
+    }
+
+    private async Task<string> SendAsync(string url, string body, CancellationToken cancellationToken)
+    {
+        if (body.Contains("\"type\":\"trace\""))
         {
             logger.LogTrace("Skipping trace activity");
             return string.Empty;
         }
 
-        ValidateServiceUrl(activity.ServiceUrl);
-
-        string url = $"{activity.ServiceUrl!}v3/conversations/{activity.Conversation!.Id}/activities/";
-        string body = activity.ToJson();
+        ValidateServiceUrl(url);
 
         HttpRequestMessage request = new(HttpMethod.Post, url)
         {

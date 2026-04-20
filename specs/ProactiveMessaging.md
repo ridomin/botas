@@ -45,16 +45,24 @@ references[ctx.activity.from_account.id] = {
 
 ## Send Proactive Message
 
-### Via `sendActivityAsync`
+### Opinionated API
+
+All languages use the same signature:
+
+```
+await bot.sendActivityAsync(serviceUrl, conversationId, activity)
+```
+
+Where:
+- `serviceUrl`: Bot Framework service URL (from stored reference)
+- `conversationId`: Target conversation ID (from stored reference)
+- `activity`: Partial activity with `type` and content (text, attachments, etc.)
 
 ```csharp
 // .NET
-var activity = new CoreActivityBuilder()
-    .WithServiceUrl(ref.ServiceUrl)
-    .WithConversation(ref.ConversationId)
+await bot.SendActivityAsync(ref.ServiceUrl, ref.ConversationId, new CoreActivityBuilder()
     .WithText("🔔 Notification!")
-    .Build();
-await bot.SendActivityAsync(activity, ct);
+    .Build());
 ```
 
 ```typescript
