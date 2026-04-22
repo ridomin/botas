@@ -4,121 +4,26 @@ outline: deep
 
 # Getting Started
 
-Build and run an echo bot in under five minutes.
+Let’s get your first Teams bot replying fast.
 
-## Prerequisites
-
-1. **Teams CLI** — creates bot registrations and provides credentials:
-
-   ```bash
-   npm install -g https://github.com/heyitsaamir/teamscli/releases/latest/download/teamscli.tgz
-   teams login
-   ```
-
-2. **Dev tunnel** — exposes your local port so Microsoft Teams can reach your bot. Install [Dev Tunnels](https://learn.microsoft.com/azure/developer/dev-tunnels/get-started).
-
-3. **Language runtime** (pick one):
-   - **.NET 10 SDK** — for the C# implementation
-   - **Node.js 20+** — for the TypeScript implementation
-   - **Python 3.11+** — for the Python implementation
+1. Be ready in ~5 seconds in any language.
+2. Talk to your bot in Teams.
+3. If you still need setup, use the [setup checklist](#step-3-setup-check-30-seconds) and [setup details](#setup-details-if-you-need-them).
 
 ::: tip
-Don't have the Teams CLI? You can also set up credentials manually through the Azure portal — see [Authentication & Setup](auth-setup).
+Yes, there’s a little setup first. Think of it as the “stretching before sprinting” part — less fun than chatting with your bot, but better than pulling a hamstring in production.
 :::
 
 ---
 
-## Step 1 — Start a dev tunnel
-
-```bash
-# Install (if you haven't already)
-winget install Microsoft.devtunnel   # Windows
-brew install --cask devtunnel        # macOS
-
-# Log in and create a persistent tunnel
-devtunnel user login
-devtunnel create --allow-anonymous
-devtunnel port create -p 3978
-devtunnel host
-```
-
-Copy the HTTPS URL from the output (e.g. `https://your-tunnel.devtunnels.ms`).
-
-
-## Step 2 — Create the Teams app
-
-```bash
-teams app create --name "MyBot" --endpoint "https://<tunnel-url>/api/messages" --json
-```
-
-The command returns JSON with your credentials and an install link:
-
-```json
-{
-  "credentials": {
-    "CLIENT_ID": "...",
-    "CLIENT_SECRET": "...",
-    "TENANT_ID": "..."
-  },
-  "installLink": "https://teams.microsoft.com/l/app/..."
-}
-```
-Keep the `installLink` — you'll use it to add the bot to Teams after the server is running.
-
-Save the credentials for your language:
-
-Create a `.env` file (for Node.js or Python):
+## Step 1 — Ready in ~5 seconds (pick your language)
 
 ::: code-group
 
-```dotenv [Node.js]
-TENANT_ID=<from output>
-CLIENT_ID=<from output>
-CLIENT_SECRET=<from output>
-```
-
-```dotenv [Python]
-TENANT_ID=<from output>
-CLIENT_ID=<from output>
-CLIENT_SECRET=<from output>
-```
-
-```json [.NET]
-// appSettings.json
-{
-  "$schema": "https://json.schemastore.org/appsettings.json",
-  "AzureAd": {
-    "Instance": "https://login.microsoftonline.com/",
-    "TenantId": "<your-tenant-id>",
-    "ClientId": "<your-bot-app-id>",
-    "ClientCredentials": [
-      {
-        "SourceType": "ClientSecret",
-        "ClientSecret": "<your-client-secret>"
-      }
-    ]
-  }
-}
-```
-::: 
-
-
-::: tip Shared `.env` at the repo root
-Place the `.env` file at the repository root to share one set of credentials across all languages. Node.js and Python load it directly with `--env-file`. For .NET, a helper script bridges the `.env` to ASP.NET Core's `launchSettings.json`:
-
-```bash
-node dotnet/env-to-launch-settings.mjs EchoBot
-```
-
-This maps `CLIENT_ID` → `AzureAd:ClientId`, etc. The generated file is already gitignored.
-:::
-
----
-
-## Step 3 — Create the echo bot
-
-::: code-group
 ```csharp [.NET]
+// Install:
+// dotnet add package Botas
+
 using Botas;
 
 var app = BotApp.Create(args);
@@ -129,9 +34,16 @@ app.On("message", async (ctx, ct) =>
 });
 
 app.Run();
+
+// Run:
+// dotnet run --project dotnet/samples/EchoBot
 ```
 
 ```typescript [Node.js]
+// Install:
+// npm install botas-core botas-express
+
+// botapp.ts
 import { BotApp } from 'botas-express'
 
 const app = new BotApp()
@@ -141,9 +53,16 @@ app.on('message', async (ctx) => {
 })
 
 app.start()
+
+// Run:
+// npx tsx --env-file .env botapp.ts
 ```
 
 ```python [Python]
+# Install:
+# uv add botas botas-fastapi
+
+# botapp.py
 from botas_fastapi import BotApp
 
 app = BotApp()
@@ -153,55 +72,91 @@ async def on_message(ctx):
     await ctx.send(f"You said: {ctx.activity.text}")
 
 app.start()
+
+# Run:
+# uv run --env-file .env botapp.py
 ```
 :::
-
-### Run it
-
-::: code-group
-```bash [.NET]
-node dotnet/env-to-launch-settings.mjs EchoBot   # bridge .env → launchSettings.json
-cd dotnet && dotnet run --project samples/EchoBot
-```
-
-```bash [Node.js]
-cd node
-npm install && npm run build
-npx tsx --env-file ../.env samples/echo-bot/index.ts
-```
-
-```bash [Python]
-cd python/samples/echo-bot
-uv run --env-file ../../.env main.py
-```
-
-:::
-
-::: details No uv? Use pip instead
-```bash
-cd python/samples/echo-bot
-pip install -e .
-python main.py
-```
-:::
-
 
 ---
 
-## Try it
+## Step 2 — Talk to your bot
 
-1. Open the `installLink` from Step 2 in your browser to add the bot to Microsoft Teams.
-2. Send it a message — you should see your text echoed back.
+1. Open the `installLink` from the `teams app create` output.
+2. Send a message in Teams.
+3. Get an echo reply from your bot.
+4. Missing `installLink`? Jump to [Step 3 setup](#step-3-setup-check-30-seconds).
 
-::: info
-Each language provides a zero-boilerplate `BotApp` wrapper. For advanced integration (custom DI, middleware, alternative frameworks), see the language guides: [.NET](languages/dotnet) · [Node.js](languages/nodejs) · [Python](languages/python).
-:::
+---
+
+## Step 3 — Setup check (30 seconds)
+
+- ✅ Teams tenant access
+- ✅ Teams app created/[sideloaded](https://learn.microsoft.com/microsoftteams/platform/concepts/deploy-and-publish/apps-upload)
+- ✅ Dev tunnel running to your local bot port (`3978`)
+- ✅ Bot credentials in `.env`
+
+Create credentials + install link with Teams CLI:
+
+```bash
+teams app create --name "MyBot" --endpoint "https://<tunnel-url>/api/messages" --json
+```
+
+Save the returned credentials:
+
+```dotenv
+TENANT_ID=<from output>
+CLIENT_ID=<from output>
+CLIENT_SECRET=<from output>
+```
+
+---
+
+## How a Teams message reaches your bot (comic flow)
+
+![Comic-style infographic of Teams message flow from Teams client to Bot Service to Dev Tunnel to local bot and back.](/images/getting-started-flow-comic.svg)
+
+---
+
+## Setup details (if you need them)
+
+### Teams CLI details
+
+Install and sign in:
+
+```bash
+npm install -g https://github.com/heyitsaamir/teamscli/releases/latest/download/teamscli.tgz
+teams login
+```
+
+More: [Authentication & Setup](auth-setup)
+
+### Dev tunnel details
+
+```bash
+# Install (if needed)
+winget install Microsoft.devtunnel   # Windows
+brew install --cask devtunnel        # macOS
+
+# Create + host tunnel
+
+devtunnel user login
+devtunnel create --allow-anonymous
+devtunnel port create -p 3978
+devtunnel host
+```
+
+Use the HTTPS URL in your bot endpoint.
+
+### Sideloading and manifest details
+
+If you need a full walkthrough for app packaging/sideloading and bot auth setup, see [Authentication & Setup](auth-setup) and the language guides: [.NET](languages/dotnet) · [Node.js](languages/nodejs) · [Python](languages/python).
 
 ---
 
 ## Next steps
 
-- [Teams Features](teams-features) — send mentions, adaptive cards, and suggested actions
-- [Language guides](languages/) — deeper coverage of each implementation
-- [Middleware](middleware) — extend the turn pipeline with logging, error handling, and more
-- [Authentication & Setup](auth-setup) — manual Azure portal setup (without Teams CLI)
+- [Teams Features](teams-features) — mentions, adaptive cards, suggested actions
+- [Middleware](middleware) — extend the turn pipeline
+- [Language guides](languages/) — deeper framework-specific guidance
+- [Authentication & Setup](auth-setup) — full manual setup without Teams CLI
