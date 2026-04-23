@@ -101,6 +101,38 @@ app.On("message", async (ctx, ct) =>
 
 ---
 
+## Activity Types
+
+String constants for compile-time safety when registering handlers.
+
+```csharp
+/// Core types — used by BotApplication for dispatch.
+public static class ActivityType
+{
+    public const string Message = "message";
+    public const string Typing = "typing";
+    public const string Invoke = "invoke";
+}
+
+/// All core types plus Teams/channel-specific types.
+public static class TeamsActivityType
+{
+    public const string Message = "message";
+    public const string Typing = "typing";
+    public const string Invoke = "invoke";
+    public const string Event = "event";
+    public const string ConversationUpdate = "conversationUpdate";
+    public const string MessageUpdate = "messageUpdate";
+    public const string MessageDelete = "messageDelete";
+    public const string MessageReaction = "messageReaction";
+    public const string InstallationUpdate = "installationUpdate";
+}
+```
+
+Handlers accept any `string`, so custom or unknown types work too.
+
+---
+
 ## Middleware
 
 ### Interface
