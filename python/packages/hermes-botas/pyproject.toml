@@ -1,0 +1,58 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "hermes-botas"
+dynamic = ["version"]
+description = "Hermes platform adapter for Microsoft Teams, powered by the botas Bot Framework library"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.12"
+authors = [{ name = "rido-min" }]
+keywords = ["bot", "bot-framework", "hermes", "microsoft-teams", "chatbot", "agent"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Communications :: Chat",
+    "Framework :: FastAPI",
+]
+dependencies = [
+    "botas",
+    "botas-fastapi",
+]
+
+[project.urls]
+Homepage = "https://github.com/rido-min/botas"
+Repository = "https://github.com/rido-min/botas"
+Issues = "https://github.com/rido-min/botas/issues"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.11",
+]
+
+[tool.uv.sources]
+botas = { path = "../botas", editable = true }
+botas-fastapi = { path = "../botas-fastapi", editable = true }
+
+[tool.hatch.version]
+path = "src/hermes_botas/_version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/hermes_botas"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
