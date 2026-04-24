@@ -781,6 +781,38 @@ All three samples now follow identical patterns: welcome card receives user inpu
 - `.squad/orchestration-log/2026-04-15T17-30-fry.md`
 - `.squad/orchestration-log/2026-04-15T17-30-hermes.md`
 
+### 16. Hermes-Botas Teams Adapter Package Structure (2026-07-16)
+
+**Author:** Hermes (Python Dev) | **Status:** Implemented (prototype)
+
+Rido requested a Hermes platform adapter for Microsoft Teams powered by botas. The adapter bridges the NousResearch/hermes-agent `BasePlatformAdapter` interface with botas's Bot Framework protocol handling.
+
+**Key Decisions:**
+
+1. **Stub Hermes types locally** (`hermes_types.py`) rather than depending on hermes-agent. This keeps the package self-contained and avoids pulling in an unrelated dependency tree. For upstream contribution, only import paths need to change.
+
+2. **Cache service_url per conversation_id** on inbound activities. The Bot Framework requires service_url for outbound calls, but the Hermes `send(chat_id, content)` API only provides chat_id. Caching on inbound is the simplest reliable strategy.
+
+3. **Non-blocking server via asyncio.create_task** in `connect()`. Hermes adapters must not block in connect() — the gateway runs multiple adapters concurrently. uvicorn.Server.serve() is run as a background task.
+
+4. **Package follows botas-fastapi patterns** — same pyproject.toml structure, hatchling build, ruff config, pytest-asyncio, uv sources for local dev.
+
+**Deliverables:**
+
+- New package at `python/packages/hermes-botas/` — no changes to existing botas code
+- 19 tests pass, ruff clean
+- Ready for review and potential upstream PR to NousResearch/hermes-agent
+
+**Impact:**
+
+- Package is isolated and can be promoted to upstream repository via PR with minimal import path changes
+- No changes to core botas library or other adapters
+- Establishes pattern for future Hermes platform integrations
+
+**Session Log:** `.squad/log/2026-04-24T21-47-hermes-adapter-prototype.md`  
+**Orchestration Log:** `.squad/orchestration-log/2026-04-24T21-47-hermes.md`
+- `.squad/orchestration-log/2026-04-15T17-30-hermes.md`
+
 ### 12. VitePress Docs-Site Migration (2026-04-13)
 
 **Author:** Kif (DevRel) | **Status:** Implemented

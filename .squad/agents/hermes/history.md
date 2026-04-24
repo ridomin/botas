@@ -87,3 +87,12 @@
 - **Status:** Committed on branch `fix/api-docs-package-names` (PR #227)
 - **Test coverage:** All 95 Python tests pass; ruff clean
 
+### Hermes Teams Adapter Prototype (hermes-botas package)
+- **New package:** `python/packages/hermes-botas/` — Hermes `BasePlatformAdapter` subclass bridging Teams via botas
+- **Architecture:** Inbound uses botas-fastapi BotApp HTTP server → activity handler → MessageEvent conversion → Hermes handler. Outbound uses cached conversation state (service_url + conversation_id) → BotApp.send_activity_async().
+- **Key design decision:** Hermes types stubbed locally in `hermes_types.py` instead of depending on hermes-agent. This keeps the package self-contained for prototyping while being easy to port upstream (just swap imports).
+- **Conversation state caching:** service_url is cached per conversation_id on inbound activities, since Hermes's send() only receives chat_id — the Bot Framework requires both service_url and conversation_id for outbound calls.
+- **Server lifecycle:** connect() starts uvicorn in an asyncio background task (non-blocking); disconnect() signals server shutdown.
+- **Tests:** 19 unit tests covering activity→MessageEvent conversion, conversation caching, send/typing/edit with mocked BotApp, env var defaults, handler integration.
+- **Linting:** ruff clean (E/F/W/I, 120 line-length), follows botas-fastapi pyproject.toml pattern.
+- **Files:** `hermes_types.py` (stubs), `teams_adapter.py` (adapter), `test_teams_adapter.py` (19 tests), `README.md`, `pyproject.toml`
