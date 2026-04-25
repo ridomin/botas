@@ -63,10 +63,13 @@ See [User Stories](./user-stories.md) for detailed behavioral scenarios.
 | Prototype pollution | Not applicable (strongly typed) | `safeJsonParse` strips dangerous keys | SHOULD strip for defense-in-depth |
 | `from` field naming | `From` (C# allows it) | `from` (JS allows it) | `from_account` (`from` is reserved in Python) |
 | Configuration model | `IConfiguration` + DI (ASP.NET pattern) | `BotApplicationOptions` interface | `BotApplicationOptions` dataclass |
+| Build timing | `BotApp.Create()` defers `Build()` to `Run()` — handlers/middleware queued until then | Immediate | Immediate |
 | `version` property | `BotApplication.Version` (static, from assembly) | `BotApplication.version` (static) | `BotApplication.version` (class attribute) |
 | `appId` property | `BotApplication.AppId` (from configuration) | `bot.appId` (from token manager) | `bot.appid` (from token manager) |
 | TeamsActivityBuilder design | Standalone class (not extending CoreActivityBuilder) | Standalone class | Standalone class |
 | Service URL validation timing | ConversationClient (outbound only) | ConversationClient (outbound only) | ConversationClient (outbound only) |
+
+> **Why .NET defers `Build()`:** `On()` and `Use()` register handlers and middleware on the `BotApp` instance, but the underlying `BotApplication` isn't available until after `WebApplicationBuilder.Build()`. So registrations are queued in pending lists and wired into the `BotApplication` during `Run()`.
 
 These differences are intentional and should be preserved per language when porting.
 
