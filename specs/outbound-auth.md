@@ -1,13 +1,13 @@
 # Outbound Authentication Spec
 
-**Purpose**: Define how bots authenticate outbound requests to the Bot Framework Service.
+**Purpose**: Define how bots authenticate outbound requests to the Bot Service Service.
 **Status**: Draft
 
 ---
 
 ## Overview
 
-When a bot sends an activity to the Bot Framework (e.g., replying to a user), the HTTP request MUST include a bearer token obtained via the OAuth 2.0 client credentials flow. This token proves the bot's identity to the Bot Framework Service.
+When a bot sends an activity to the Bot Service (e.g., replying to a user), the HTTP request MUST include a bearer token obtained via the OAuth 2.0 client credentials flow. This token proves the bot's identity to the Bot Service Service.
 
 ---
 
@@ -23,7 +23,7 @@ OAuth 2.0 **client credentials** grant (`grant_type=client_credentials`).
 POST https://login.microsoftonline.com/{tenantId}/oauth2/v2.0/token
 ```
 
-Where `{tenantId}` is the bot's Azure AD tenant ID, read from the `TENANT_ID` environment variable.
+Where `{tenantId}` is the bot's Azure AD tenant ID, read from the `TENANT_ID` environment variable. If `TENANT_ID` is not set, the default tenant for Bot Service token acquisition is `botframework.com` (NOT `common`).
 
 ### Request Parameters
 
@@ -60,7 +60,7 @@ grant_type=client_credentials
 
 ## Token Usage
 
-Every outbound HTTP request to the Bot Framework MUST include the token:
+Every outbound HTTP request to the Bot Service MUST include the token:
 
 ```
 Authorization: Bearer {access_token}
@@ -69,7 +69,7 @@ Authorization: Bearer {access_token}
 This applies to all outbound calls, including:
 
 - Sending activities (`POST {serviceUrl}v3/conversations/{conversationId}/activities`)
-- Any future Bot Framework REST API calls
+- Any future Bot Service REST API calls
 
 ---
 
@@ -86,6 +86,8 @@ Implementations SHOULD NOT request a new token for every outbound call.
 ### Negative Caching
 
 Implementations SHOULD cache failed token acquisition attempts for a short period (e.g., 30 seconds) to avoid hammering the Azure AD token endpoint during transient failures. After the negative cache expires, the next outbound request should retry token acquisition.
+
+**Behavior on negative cache hit**: When a subsequent token request hits the negative cache, the implementation MUST throw/raise an error (not silently return null). This ensures callers are aware of the authentication failure rather than sending unauthenticated requests.
 
 ---
 
@@ -109,6 +111,22 @@ Flow selection logic:
 4. If `CLIENT_ID` is set (no secret, no MI override) → user managed identity.
 5. If nothing is set → no auth (dev/testing mode).
 
+### Token Factory Callback Signature
+
+The custom token factory receives `scope` and `tenantId` parameters and returns a bearer token string:
+
+| Language | Signature |
+|----------|-----------|
+| .NET | `Func<string, string, Task<string>>` — `(scope, tenantId) => token` |
+| Node.js | `(scope: string, tenantId: string) => Promise<string>` |
+| Python | `Callable[[str, str], Awaitable[str]]` — `(scope, tenant_id) → token` |
+
+This allows callers to provide tokens from external sources (managed identity wrappers, test fixtures, custom auth providers) while giving the factory enough context to request the right token.
+
+The token factory MUST throw/raise on failure — it MUST NOT return `null`, `None`, or an empty string. Implementations MUST propagate factory exceptions to the caller without swallowing them.
+
+Implementations SHOULD use established identity libraries (e.g., MSAL) rather than making raw HTTP requests to the token endpoint. These libraries handle token caching, retry logic, authority discovery, and edge cases that are difficult to implement correctly from scratch.
+
 See [Configuration](./configuration.md) for the full per-language configuration reference.
 
 ---
@@ -130,4 +148,4 @@ See [Configuration](./configuration.md) for the full per-language configuration 
 
 - [Protocol Spec](./protocol.md) — overall HTTP contract
 - [Microsoft Identity Platform Client Credentials Flow](https://learn.microsoft.com/azure/active-directory/develop/v2-oauth2-client-creds-grant-flow)
-- [Bot Framework Authentication](https://learn.microsoft.com/azure/bot-service/rest-api/bot-framework-rest-connector-authentication)
+- [Bot Service Authentication](https://learn.microsoft.com/azure/bot-service/rest-api/bot-framework-rest-connector-authentication)

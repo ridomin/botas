@@ -7,7 +7,7 @@
 
 ## Overview
 
-`botas` is a lightweight library for building Microsoft Bot Framework bots. This spec documents behavioral contracts for cross-language parity.
+`botas` is a lightweight library for building Microsoft Bot Service bots. This spec documents behavioral contracts for cross-language parity.
 
 ---
 
@@ -26,101 +26,18 @@
 | Spec | Purpose |
 |------|---------|
 | [proactive-messaging.md](./proactive-messaging.md) | Out-of-turn messaging |
-| [invoke-activities.md](./invoke-activities.md) | Invoke activity dispatch |
+| [invoke-activities.md](./invoke-activities.md) | Invoke activity dispatch and Action.Submit vs Action.Execute |
 | [teams-activity.md](./teams-activity.md) | Teams-specific features (TeamsActivity, TeamsActivityBuilder) |
 
-For **developer guides** on middleware patterns, use cases, and samples, see the [Middleware Guide](../docs-site/middleware.md) and [Developer Docs](../docs-site/).
+For **developer guides** on middleware patterns, use cases, and samples, see the [Middleware Guide](../docs-site/middleware.md).
 
 **Aspirational/future specs** (not yet implemented) live in [specs/future/](./future/).
 
 ---
 
-## User Stories (Gherkin)
+## User Stories
 
-### US-001: Echo Bot
-
-```
-Feature: Bot responds to user messages
-  Scenario: Simple message response
-    Given a running bot
-    When user sends "hello"
-    Then bot responds with "you said hello"
-
-  Scenario: Empty message handling
-    Given a running bot
-    When user sends empty message
-    Then bot handles gracefully (no crash)
-
-  Scenario: Authentication
-    Given a running bot
-    When Bot Framework sends activity
-    Then JWT token is validated
-```
-
-### US-002: Proactive Messaging
-
-```
-Feature: Bot sends messages outside turn
-  Scenario: Send to stored conversation
-    Given a stored conversation reference
-    When bot sends proactive message
-    Then user receives the message
-
-  Scenario: Invalid reference
-    Given an invalid conversation reference
-    When bot sends message
-    Then error is returned
-```
-
-### US-003: Middleware Pipeline
-
-```
-Feature: Custom middleware processes activities
-  Scenario: Middleware executes before handler
-    Given middleware is registered
-    When activity is received
-    Then middleware runs before handler
-
-  Scenario: Multiple middleware order
-    Given multiple middleware registered
-    When activity is received
-    Then execute in registration order
-
-  Scenario: Middleware short-circuit
-    Given middleware does not call next()
-    Then subsequent middleware and handler are skipped
-```
-
-### US-004: Teams Activity Features
-
-```
-Feature: Rich Teams interactions
-  Scenario: Adaptive Card
-    Given a running bot
-    When user sends "cards"
-    Then bot replies with an Adaptive Card
-
-  Scenario: Suggested Actions
-    Given a running bot
-    When user sends "actions"
-    Then bot replies with suggested action buttons
-
-  Scenario: Mention
-    Given a running bot
-    When user sends any other text
-    Then bot echoes back with an @mention of sender
-```
-
----
-
-## Acceptance Criteria
-
-| ID | Criteria |
-|----|----------|
-| AC-001 | Implementation passes all user story acceptance scenarios |
-| AC-002 | Protocol-compliant serialization/deserialization |
-| AC-003 | JWT validation and OAuth client credentials work |
-| AC-004 | Code follows target language idioms |
+See [User Stories](./user-stories.md) for detailed behavioral scenarios.
 
 ---
 
@@ -139,11 +56,20 @@ Feature: Rich Teams interactions
 | TurnContext.sendTyping | `SendTypingAsync()` returns `Task<string>` | `sendTyping()` returns `Promise<void>` | `send_typing()` returns `None` |
 | Exception class name | `BotHandlerException` | `BotHandlerException` | `BotHandlerException` |
 | DI registration | `AddBotApplication<TApp>()` | Not applicable | Not applicable |
+| Build timing | `BotApp.Create()` defers `Build()` to `Run()` — handlers/middleware queued until then | Immediate | Immediate |
 | Resource cleanup | Handled by DI container | No explicit cleanup needed | `async with bot:` context manager or `await bot.aclose()` |
 | Activity model | `CoreActivity` class with `[JsonExtensionData]` | `CoreActivity` interface with `properties?` dict | `CoreActivity` Pydantic model with `model_extra` |
+| `CoreActivity()` default type | `"message"` (via primary constructor) | `""` (empty string) | `""` (empty string) |
 | Prototype pollution | Not applicable (strongly typed) | `safeJsonParse` strips dangerous keys | SHOULD strip for defense-in-depth |
 | `from` field naming | `From` (C# allows it) | `from` (JS allows it) | `from_account` (`from` is reserved in Python) |
 | Configuration model | `IConfiguration` + DI (ASP.NET pattern) | `BotApplicationOptions` interface | `BotApplicationOptions` dataclass |
+| Build timing | `BotApp.Create()` defers `Build()` to `Run()` — handlers/middleware queued until then | Immediate | Immediate |
+| `version` property | `BotApplication.Version` (static, from assembly) | `BotApplication.version` (static) | `BotApplication.version` (class attribute) |
+| `appId` property | `BotApplication.AppId` (from configuration) | `bot.appId` (from token manager) | `bot.appid` (from token manager) |
+| TeamsActivityBuilder design | Standalone class (not extending CoreActivityBuilder) | Standalone class | Standalone class |
+| Service URL validation timing | ConversationClient (outbound only) | ConversationClient (outbound only) | ConversationClient (outbound only) |
+
+> **Why .NET defers `Build()`:** `On()` and `Use()` register handlers and middleware on the `BotApp` instance, but the underlying `BotApplication` isn't available until after `WebApplicationBuilder.Build()`. So registrations are queued in pending lists and wired into the `BotApplication` during `Run()`.
 
 These differences are intentional and should be preserved per language when porting.
 

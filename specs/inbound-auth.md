@@ -1,13 +1,13 @@
 # Inbound Authentication Spec
 
-**Purpose**: Define how bots validate incoming requests from the Bot Framework Service.
+**Purpose**: Define how bots validate incoming requests from the Bot Service Service.
 **Status**: Draft
 
 ---
 
 ## Overview
 
-Every `POST /api/messages` request from the Bot Framework Service carries a JWT bearer token in the `Authorization` header. The bot MUST validate this token **before** processing the activity. An invalid or missing token MUST result in a `401 Unauthorized` response.
+Every `POST /api/messages` request from the Bot Service Service carries a JWT bearer token in the `Authorization` header. The bot MUST validate this token **before** processing the activity. An invalid or missing token MUST result in a `401 Unauthorized` response.
 
 ---
 
@@ -31,7 +31,7 @@ The token's `aud` claim MUST match one of the following:
 |-----------------|---------|
 | Bot's Client ID (plain) | `{CLIENT_ID}` |
 | Bot's Client ID with `api://` prefix | `api://{CLIENT_ID}` |
-| Bot Framework global issuer | `https://api.botframework.com` |
+| Bot Service global issuer | `https://api.botframework.com` |
 
 The Client ID is read from the `CLIENT_ID` environment variable.
 
@@ -41,7 +41,7 @@ The following issuers MUST be accepted:
 
 | Issuer | When used |
 |--------|-----------|
-| `https://api.botframework.com` | Tokens from the global Bot Framework channel |
+| `https://api.botframework.com` | Tokens from the global Bot Service channel |
 | `https://sts.windows.net/{tenantId}/` | Tokens from Azure AD v1 endpoints |
 | `https://login.microsoftonline.com/{tenantId}/v2` | Tokens from Azure AD v2 endpoints |
 | `https://login.microsoftonline.com/{tenantId}/v2.0` | Tokens from Azure AD v2 endpoints (alternate format) |
@@ -50,7 +50,7 @@ Where `{tenantId}` is the Azure AD tenant ID from the token's `tid` claim.
 
 ### 3. Signature (JWKS)
 
-Token signatures MUST be verified against public keys retrieved from the appropriate OpenID configuration endpoint (see below).
+Token signatures MUST be verified against public keys retrieved from the appropriate OpenID configuration endpoint (see below). Implementations MUST restrict accepted algorithms to **RS256** only. This prevents algorithm confusion attacks where an attacker could force the use of a weaker or symmetric algorithm.
 
 ### 4. Expiration
 
@@ -82,7 +82,11 @@ Where `{tid}` is the token's `tid` claim.
 
 ### Key Caching
 
-Implementations SHOULD cache the JWKS keys and OpenID configuration to avoid fetching on every request. A reasonable cache duration is 24 hours, with a fallback re-fetch on key-not-found errors.
+Implementations MUST cache the JWKS keys and OpenID configuration to avoid fetching on every request. A reasonable cache duration is 24 hours, with a fallback re-fetch on key-not-found errors. The cache MUST be shared across all validation calls — i.e., module-level or singleton-scoped. Creating a new validator instance per request defeats caching and causes a network fetch on every inbound activity.
+
+> **Serverless environments**: In serverless environments where singleton state is not guaranteed across invocations, implementations SHOULD use the platform's built-in caching mechanism (e.g., external cache, warm instance reuse) to minimize JWKS fetches. The intent is to avoid per-request network fetches — the specific caching strategy may vary by hosting model.
+
+**Key rollover retry**: When a token's `kid` does not match any cached key, implementations MUST force a JWKS refresh and retry validation **once**. If the key is still not found after refresh, reject the token. This handles Azure AD key rotations gracefully without requiring manual cache invalidation.
 
 ### Metadata URL Validation
 
@@ -119,21 +123,27 @@ All language implementations MUST support the same authentication features. This
 
 | Feature | Required | .NET | Node.js | Python |
 |---------|----------|------|---------|--------|
-| JWT signature verification (JWKS) | ✅ | MSAL + middleware | `jsonwebtoken` + `jwks-rsa` | `PyJWT` + `httpx` |
+| JWT signature verification (JWKS) | ✅ | MSAL + middleware | `jose` library | `PyJWT` + `httpx` |
 | Audience validation (3 formats) | ✅ | ✅ | ✅ | ✅ |
-| Issuer validation (`sts.windows.net` + `login.microsoftonline.com`) | ✅ | ✅ | ✅ | ✅ |
+| Issuer validation (`sts.windows.net` + `login.microsoftonline.com`) | ✅ | ⚠️ .NET may be missing v2.0 issuer validation | ✅ | ✅ |
 | Dynamic metadata URL selection by `iss` | ✅ | ✅ | ✅ | ✅ |
 | Metadata URL prefix validation (SSRF defense) | ✅ | ✅ | ✅ | ✅ |
-| JWKS key caching | ✅ | Via MSAL | Via `jwks-rsa` | Manual (in-memory) |
+| JWKS key caching | ✅ | Via MSAL | Via `jose` | Manual (in-memory) |
 | Token expiration (`exp` / `nbf`) | ✅ | ✅ | ✅ | ✅ |
 | Auth bypass when `CLIENT_ID` not configured | ✅ | ✅ | ✅ | ✅ |
 
-> **Note**: .NET uses MSAL's built-in JWT validation which handles many of these features natively. Node.js and Python implement validation manually. When adding a new language port, ensure all features in this table are covered.
+> **Note**: .NET uses MSAL's built-in JWT validation which handles many of these features natively. Node.js uses the `jose` library for modern, standards-compliant JWT validation. Python implements validation manually using `PyJWT` and `httpx` for JWKS fetching. When adding a new language port, ensure all features in this table are covered.
+
+> **No-auth mode**: When `CLIENT_ID` is not configured, the **framework** (e.g., `BotApp.Create`) MUST skip JWT validation entirely — the auth middleware is not registered. However, the `validateBotToken()` / `validate_bot_token()` function itself MUST require an `appId` parameter and throw/raise an error if it is not provided. This ensures that no-auth mode is an explicit framework-level decision, not a silent validation bypass at the function level.
+
+> **Known gap**: The .NET implementation may not validate the `v2.0` suffix in issuer URLs (`https://login.microsoftonline.com/{tenantId}/v2.0`). This does not pose a security risk as MSAL validates the signature and audience, but should be fixed for full spec compliance.
+
+> **OpenID config URL variation**: Some implementations may fetch from `https://login.microsoftonline.com/{tid}/v2.0/.well-known/openidconfiguration` (without hyphen) instead of the hyphenated form. Both URLs return equivalent metadata.
 
 ---
 
 ## References
 
 - [Protocol Spec](./protocol.md) — overall HTTP contract
-- [Bot Framework Authentication](https://learn.microsoft.com/azure/bot-service/rest-api/bot-framework-rest-connector-authentication)
-- [OpenID Configuration (Bot Framework)](https://login.botframework.com/v1/.well-known/openid-configuration)
+- [Bot Service Authentication](https://learn.microsoft.com/azure/bot-service/rest-api/bot-framework-rest-connector-authentication)
+- [OpenID Configuration (Bot Service)](https://login.botframework.com/v1/.well-known/openid-configuration)

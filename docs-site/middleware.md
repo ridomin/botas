@@ -63,7 +63,7 @@ Here are practical reasons to use middleware:
 | **Logging** | Log all incoming activities and response times for debugging and auditing. |
 | **Activity filtering/modification** | Strip mentions, redact sensitive data, or normalize user input. |
 | **Metrics & telemetry** | Count message types, measure handler latency, send to Application Insights. |
-| **Authentication checks** | Validate user identity or conversation authorization beyond Bot Framework JWT. |
+| **Authentication checks** | Validate user identity or conversation authorization beyond Bot Service JWT. |
 | **Rate limiting** | Throttle requests from a single user or conversation. |
 | **Context enrichment** | Look up user profile, conversation state, and attach to context for handler use. |
 | **Error recovery** | Wrap handlers in try/catch to send fallback messages on failure. |
@@ -120,6 +120,10 @@ class LoggingMiddleware(TurnMiddleware):
 :::
 
 ::: info
+**Middleware type sources (Node.js):** Middleware types (`TurnMiddleware`, `NextTurn`, etc.) and built-in middleware (`removeMentionMiddleware`) are **defined in `botas-core`** and re-exported from `botas-express` for convenience. Both import sources work — examples on this page use `botas-express` since most users work with `BotApp`, but `botas-core` is the canonical source.
+:::
+
+::: info
 **Next callback types:** .NET `NextDelegate` takes `CancellationToken` · Node.js `NextTurn` is `() => Promise<void>` · Python `NextTurn` is `Callable[[], Awaitable[None]]`
 :::
 
@@ -127,7 +131,7 @@ class LoggingMiddleware(TurnMiddleware):
 
 ## Registering middleware
 
-Call `Use()` (**.NET**) or `use()` (**Node / Python**) on your `BotApplication` instance. You can chain multiple calls — they run in the order registered.
+Call `Use()` (**.NET**) or `use()` (**Node / Python**) on your `BotApplication` or `BotApp` instance. You can chain multiple calls — they run in the order registered.
 
 ::: code-group
 ```csharp [.NET]
@@ -150,6 +154,23 @@ bot = BotApplication()
 
 bot.use(LoggingMiddleware())
 bot.use(ErrorHandlingMiddleware())
+```
+:::
+
+::: tip Node.js: Using BotApp
+If you're following the [Getting Started](getting-started) guide with `BotApp`, the API is identical:
+
+```typescript
+import { BotApp } from 'botas-express'
+
+const app = new BotApp()
+
+app
+  .use(loggingMiddleware)
+  .use(errorHandlingMiddleware)
+  .on('message', handler)
+
+app.start()
 ```
 :::
 

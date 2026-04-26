@@ -49,6 +49,21 @@
 - Async context managers critical for resource cleanup in long-running servers
 - Extra fields on CoreActivity (membersAdded, reactionsAdded, action) use original JSON camelCase keys via Pydantic extra="allow"; access with `getattr(activity, "membersAdded", None)` — they're raw dicts/lists, not typed models
 
+### Specs Overhaul — Python Reference Doc (Issue #259) (2026-04-24)
+- **Fixed specs/reference/python.md to match actual implementation:**
+  - **BotApp import path:** Changed `from botas import BotApp` → `from botas_fastapi import BotApp` (line 13). BotApp lives in botas-fastapi package adapter, not core.
+  - **TurnContext.send signature:** Updated to accept `str | CoreActivity | dict` (was only `str | dict`). CoreActivity is a valid input per actual source.
+  - **on_invoke method:** Added `on_invoke(name, handler)` to BotApplication API signature (was missing). Returns `InvokeResponse(status, body)`.
+  - **InvokeResponse & invoke activities:** Added new "Invoke Activities" section documenting handler pattern and automatic 501 fallback.
+  - **Configuration table:** Added `MANAGED_IDENTITY_CLIENT_ID` and `ALLOWED_SERVICE_URLS` environment variables (both are read by code but were missing from docs).
+  - **HTTP Integration:** Split FastAPI example from manual integration; clarified `invoke_response` handling for both paths.
+  - **Auth Dependency:** Clarified `BotApp` auto-enables auth when `CLIENT_ID` is set; manual path uses `bot_auth_dependency(client_id)`.
+  - **Language-Specific Differences:** Updated `TurnContext.send` signature in table to match actual `str | CoreActivity | dict`.
+  - **Exception class:** Added `cause` and `activity` attributes to BotHandlerException documentation.
+- **Verification:** Audited bot_application.py, turn_context.py, conversation_client.py, core_activity.py, bot_app.py, token_manager.py, __init__.py files.
+- **Branch:** docs/specs-overhaul-259 (PR #259)
+
+
 ### API Documentation — Google-style Docstrings (2026-04-22)
 - **Added Google-style docstrings to all 12 public Python files** in `python/packages/botas/src/botas/` per user directive (Rido, 2026-04-22T21:27).
 - **Files documented:**
@@ -96,3 +111,31 @@
 - **Tests:** 19 unit tests covering activity→MessageEvent conversion, conversation caching, send/typing/edit with mocked BotApp, env var defaults, handler integration.
 - **Linting:** ruff clean (E/F/W/I, 120 line-length), follows botas-fastapi pyproject.toml pattern.
 - **Files:** `hermes_types.py` (stubs), `teams_adapter.py` (adapter), `test_teams_adapter.py` (19 tests), `README.md`, `pyproject.toml`
+### Case-Insensitive Handler Lookup (Issue #263) (2026-07-14)
+- **Problem:** Handler registration and dispatch used exact-case dict keys, so `bot.on("Message", handler)` wouldn't match incoming `"message"` activities.
+- **Fix:** Normalized keys to `.lower()` in four places: `on()` registration (direct + decorator), `on_invoke()` registration (direct + decorator), `_handle_activity_async()` lookup, and `_dispatch_invoke_async()` lookup.
+- **Tests added:** 4 new tests in `TestCaseInsensitiveHandlerLookup` — uppercase registration matching lowercase activity, lowercase matching uppercase, invoke handler case-insensitivity, and decorator case-insensitivity.
+- **Gotcha:** Editable install (`pip install -e`) may cache stale bytecode; needed reinstall to pick up changes in interactive testing.
+- **Status:** 99 tests pass, ruff clean. Branch `fix/case-insensitive-handler-lookup-263`.
+### Typed id and channelId on CoreActivity (Issue #261) (2026-07-18)
+- **Promoted `id` and `channel_id` to typed optional string fields** on `CoreActivity` (previously only in `model_extra`).
+- Pydantic `to_camel` alias generator handles `channel_id` <-> `channelId` mapping automatically.
+- Updated existing test `test_untyped_fields_land_in_model_extra` (no longer applies to these fields).
+- Added 5 new tests: deserialization, not-in-extra, serialization, round-trip, defaults-to-none.
+- **Test status:** 100 passed, 11 skipped; ruff clean.
+- **Branch:** fix/typed-id-channelid-261
+### Invoke Dispatch Fix — 200 for No Handlers, 501 for No Match (#262) (2026-04-25)
+- **Fixed `_dispatch_invoke_async` in `bot_application.py`:** Added early return of `InvokeResponse(status=200, body={})` when `self._invoke_handlers` dict is empty (bot doesn't handle invokes at all).
+- **Previous behavior:** Always returned 501 when no handler matched, even if zero invoke handlers were registered.
+- **New behavior:** No invoke handlers → 200 {}; handlers exist but none match → 501.
+- **Tests updated:** Replaced 2 old tests (expected 501 with no handlers) with 4 new tests covering both paths.
+- **Branch:** fix/invoke-dispatch-262
+- **All tests pass; ruff clean.**
+
+### Input Validation 400 Tests — Empty String Coverage (#260) (2026-04-25)
+- **Existing validation already correct:** `_assert_activity` in `bot_application.py` uses `not activity.type` / `not activity.service_url` which catches both None and empty strings; FastAPI adapter catches `ValueError` → returns HTTP 400.
+- **Tightened existing tests:** Changed `pytest.raises(Exception, ...)` to `pytest.raises(ValueError, ...)` for missing type, serviceUrl, and conversation.id tests — ensures the correct exception type is asserted.
+- **Added 3 new tests:** `test_raises_on_empty_type`, `test_raises_on_empty_service_url`, `test_valid_activity_proceeds_normally`.
+- **Branch:** fix/input-validation-400-260
+- **All tests pass; ruff clean.**
+

@@ -9,6 +9,22 @@
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
+### Specs Overhaul: dotnet.md Audit and Fix (2026-04-13)
+- **Task:** Fixed `specs/reference/dotnet.md` to match actual .NET implementation for Issue #259.
+- **Key findings and fixes:**
+  1. **ProcessAsync signature** — Doc incorrectly stated `ProcessAsync(Request, Response)`, changed to `ProcessAsync(HttpContext)` which matches actual implementation.
+  2. **TurnContext return types** — All `SendAsync()` and `SendTypingAsync()` methods return `Task<string>` (activity ID), not `Task` as doc showed.
+  3. **SendTypingAsync** — Confirmed exists with signature `Task<string> SendTypingAsync(CancellationToken)`.
+  4. **OnInvoke handler** — Added missing documentation for `BotApplication.OnInvoke()` and `BotApp.OnInvoke()` methods; returns `InvokeResponse` object.
+  5. **BotApp.Create** — Added `routePath` parameter documentation (optional, default `"api/messages"`).
+  6. **Version and AppId properties** — Both exposed: `BotApplication.Version` (static), `BotApplication.AppId` (instance property).
+  7. **ConversationClient** — Only `SendActivityAsync(CoreActivity)` method exists; no other methods implemented (audit was correct).
+  8. **New InvokeResponse documentation** — Added full section documenting `Status` and `Body` properties with example invoke handler.
+  9. **Language-Specific Differences table** — Expanded and corrected 13 entries to reflect actual API surface including AppId, Version, Route path, and Invoke handler registration.
+- **Files modified:** `specs/reference/dotnet.md` only (no source code changes).
+- **Testing:** Verified all changes against actual source in `dotnet/src/Botas/` — BotApp.cs, BotApplication.cs, TurnContext.cs, ConversationClient.cs.
+- **Key insight:** The .NET implementation is the canonical reference; specs must match the code precisely to enable cross-language porting.
+
 ### Typing Activity Support (2026-04-13)
 - **Implemented typing activity support** following approved API design from `.squad/decisions/inbox/leela-typing-api-resolved.md`.
 - **New API surface:**
@@ -122,3 +138,30 @@
 - **Test status:** All 77 tests pass
 - **Decision:** See .squad/decisions/inbox/amy-docfx-setup.md for evaluation details
 - **Key insight:** DefaultDocumentation generates cleaner VitePress-compatible markdown than DocFX v2/v3 templates without post-processing
+
+### Standard Error Response Format (2026-04-25)
+- **Implemented JSON error responses** for .NET (#247, PR #258)
+- 401 responses now return `{"error":"Unauthorized","message":"Missing or invalid Authorization header"}` instead of empty body
+- 405 responses for non-POST methods return `{"error":"MethodNotAllowed","message":"Only POST is accepted"}`
+- Used middleware approach (not OnChallenge) because ASP.NET multi-scheme auth challenges fire per-scheme, causing conflicts
+- Added `ErrorResponseFormatTests` integration tests using `Microsoft.AspNetCore.TestHost`
+- Key learning: `OnChallenge` in JwtBearerEvents doesn't work cleanly with multi-scheme policies — middleware before auth is more reliable
+
+### Promote Id and ChannelId to Typed Fields (#261) (2026-07-15)
+- **Task:** Added `Id` and `ChannelId` as typed string properties on `CoreActivity`, following the same `[JsonPropertyName]` pattern as existing fields (Type, Text, ServiceUrl, etc.).
+- **Changes:** `dotnet/src/Botas/CoreActivity.cs` — two new nullable string properties; `dotnet/tests/Botas.Tests/CoreActivityTests.cs` — three new tests (deserialization, serialization, round-trip).
+- **Key insight:** System.Text.Json's `[JsonExtensionData]` automatically excludes typed properties from the extension dictionary — no extra exclusion logic needed.
+- **Result:** All 85 tests pass. Fields deserialize from JSON, stay out of `Properties`, and round-trip correctly.
+
+### Fix Invoke Dispatch: 200 when no handlers, 501 when no match (#262) (2026-04-25)
+- **Task:** Changed invoke dispatch so bots with zero invoke handlers return HTTP 200 (not 501) for invoke activities, while bots with handlers that don't match the invoke name still return 501.
+- **Changes:** dotnet/src/Botas/BotApplication.cs — added early return `if (_invokeHandlers.Count == 0) return 200` before name lookup; dotnet/tests/Botas.Tests/InvokeActivityTests.cs — replaced 2 old tests with 4 new tests covering both no-handler and no-match scenarios.
+- **Key insight:** The distinction matters because a bot that simply doesn't handle invokes should succeed silently (200), but a bot that *tries* to handle invokes and fails to match is a real "not implemented" (501).
+- **Result:** All 84 tests pass. Build clean, zero warnings.
+- Key learning: `OnChallenge` in JwtBearerEvents doesn't work cleanly with multi-scheme policies — middleware before auth is more reliable
+
+### Case-Insensitive Handler Lookup (#263) (2025-07-17)
+- **Finding:** The handler dictionary already used `StringComparer.OrdinalIgnoreCase` — case-insensitive lookup was already implemented, just untested
+- **Changes:** Promoted `DispatchToHandler` from `private` to `internal` for testability (leveraging existing `InternalsVisibleTo`)
+- **Added 3 tests** in `CaseInsensitiveHandlerTests.cs`: uppercase→lowercase match, lowercase→mixed-case match, same-key replacement across casings
+- **Key learning:** Always check existing code before assuming a bug — sometimes the fix is just adding test coverage to lock down correct behavior

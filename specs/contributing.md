@@ -142,9 +142,9 @@ In order of priority:
 | `CoreActivity` | Activity model with extension data preservation | [Activity Schema](./activity-schema.md) |
 | `CoreActivityBuilder` | Fluent builder with `withConversationReference` | [Activity Schema](./activity-schema.md) |
 | `TokenManager` | OAuth2 client-credentials token acquisition and caching | [Outbound Auth](./outbound-auth.md) |
-| `ConversationClient` | HTTP client for the Bot Framework REST API | [Protocol — Outbound](./protocol.md#outbound-sending-activities) |
+| `ConversationClient` | HTTP client for the Bot Service REST API | [Protocol — Outbound](./protocol.md#outbound-sending-activities) |
 | `BotApplication` | Middleware pipeline + handler dispatch | [Protocol](./protocol.md) |
-| `TurnContext` | Scoped context for handlers and middleware | [Turn Context](./turn-context.md) |
+| `TurnContext` | Scoped context for handlers and middleware | [Protocol — TurnContext](./protocol.md#turncontext) |
 | Inbound JWT validation | Validate incoming bearer tokens | [Inbound Auth](./inbound-auth.md) |
 | `BotApp` (optional) | Zero-boilerplate wrapper | Language-specific convenience |
 
@@ -176,7 +176,7 @@ Add a job to `.github/workflows/CI.yml` that builds, lints, and tests the new po
 ## What Not to Do
 
 - Do not duplicate spec content — link to `specs/` instead.
-- Do not invent new authentication flows or HTTP contracts outside the Bot Framework model.
+- Do not invent new authentication flows or HTTP contracts outside the Bot Service model.
 - Do not treat this repo as a single-language project.
 - Do not add new dependencies without justification.
 

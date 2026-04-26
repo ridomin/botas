@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { BotApplication, BotHandlerException } from './bot-application.js'
+import { BotApplication, BotHandlerException, ActivityValidationError } from './bot-application.js'
 import type { CoreActivity } from './core-activity.js'
 import type { TurnContext } from './turn-context.js'
 
@@ -55,22 +55,80 @@ describe('BotApplication', () => {
       assert.deepEqual(calls, ['second'])
     })
 
-    it('throws on missing type field', async () => {
+    it('matches handler registered with uppercase type to lowercase activity type', async () => {
+      const bot = new BotApplication()
+      let received: TurnContext | undefined
+      bot.on('Message', async (ctx) => { received = ctx })
+      await bot.processBody(makeBody({ type: 'message' }))
+      assert.ok(received)
+      assert.equal(received.activity.type, 'message')
+    })
+
+    it('matches handler registered with lowercase type to mixed-case activity type', async () => {
+      const bot = new BotApplication()
+      let received: TurnContext | undefined
+      bot.on('typing', async (ctx) => { received = ctx })
+      await bot.processBody(makeBody({ type: 'Typing' }))
+      assert.ok(received)
+      assert.equal(received.activity.type, 'Typing')
+    })
+
+    it('throws ActivityValidationError on missing type field', async () => {
       const bot = new BotApplication()
       const body = JSON.stringify({ serviceUrl: 'http://s', conversation: { id: 'c' } })
-      await assert.rejects(() => bot.processBody(body), /type/)
+      await assert.rejects(() => bot.processBody(body), (err: unknown) => {
+        assert.ok(err instanceof ActivityValidationError)
+        assert.match(err.message, /type/)
+        return true
+      })
     })
 
-    it('throws on missing serviceUrl field', async () => {
+    it('throws ActivityValidationError on missing serviceUrl field', async () => {
       const bot = new BotApplication()
       const body = JSON.stringify({ type: 'message', conversation: { id: 'c' } })
-      await assert.rejects(() => bot.processBody(body), /serviceUrl/)
+      await assert.rejects(() => bot.processBody(body), (err: unknown) => {
+        assert.ok(err instanceof ActivityValidationError)
+        assert.match(err.message, /serviceUrl/)
+        return true
+      })
     })
 
-    it('throws on missing conversation.id', async () => {
+    it('throws ActivityValidationError on missing conversation.id', async () => {
       const bot = new BotApplication()
       const body = JSON.stringify({ type: 'message', serviceUrl: 'http://s', conversation: {} })
-      await assert.rejects(() => bot.processBody(body), /conversation/)
+      await assert.rejects(() => bot.processBody(body), (err: unknown) => {
+        assert.ok(err instanceof ActivityValidationError)
+        assert.match(err.message, /conversation/)
+        return true
+      })
+    })
+
+    it('throws ActivityValidationError on empty string type', async () => {
+      const bot = new BotApplication()
+      const body = JSON.stringify({ type: '', serviceUrl: 'https://smba.trafficmanager.botframework.com/api', conversation: { id: 'c' } })
+      await assert.rejects(() => bot.processBody(body), (err: unknown) => {
+        assert.ok(err instanceof ActivityValidationError)
+        assert.match(err.message, /type/)
+        return true
+      })
+    })
+
+    it('throws ActivityValidationError on empty string serviceUrl', async () => {
+      const bot = new BotApplication()
+      const body = JSON.stringify({ type: 'message', serviceUrl: '', conversation: { id: 'c' } })
+      await assert.rejects(() => bot.processBody(body), (err: unknown) => {
+        assert.ok(err instanceof ActivityValidationError)
+        assert.match(err.message, /serviceUrl/)
+        return true
+      })
+    })
+
+    it('proceeds normally when type and serviceUrl are present', async () => {
+      const bot = new BotApplication()
+      let received = false
+      bot.on('message', async () => { received = true })
+      await bot.processBody(makeBody())
+      assert.ok(received)
     })
 
     it('does not pollute Object prototype via __proto__ key', async () => {
@@ -294,14 +352,28 @@ describe('BotApplication', () => {
       assert.deepEqual(result, { status: 200, body: { ok: true } })
     })
 
-    it('returns 501 when no handler registered for invoke name', async () => {
+    it('returns 501 when no invoke handlers registered at all', async () => {
       const bot = new BotApplication()
       const result = await bot.processBody(makeBody({ type: 'invoke', name: 'task/fetch' }))
       assert.deepEqual(result, { status: 501 })
     })
 
-    it('returns 501 when invoke activity has no name', async () => {
+    it('returns 501 when invoke activity has no name and no handlers registered', async () => {
       const bot = new BotApplication()
+      const result = await bot.processBody(makeBody({ type: 'invoke' }))
+      assert.deepEqual(result, { status: 501 })
+    })
+
+    it('returns 501 when invoke handlers exist but none match the name', async () => {
+      const bot = new BotApplication()
+      bot.onInvoke('adaptiveCard/action', async () => ({ status: 200, body: { ok: true } }))
+      const result = await bot.processBody(makeBody({ type: 'invoke', name: 'task/fetch' }))
+      assert.deepEqual(result, { status: 501 })
+    })
+
+    it('returns 501 when invoke handlers exist but activity has no name', async () => {
+      const bot = new BotApplication()
+      bot.onInvoke('adaptiveCard/action', async () => ({ status: 200 }))
       const result = await bot.processBody(makeBody({ type: 'invoke' }))
       assert.deepEqual(result, { status: 501 })
     })
@@ -354,6 +426,46 @@ describe('BotApplication', () => {
 
       assert.equal(response.status, 200)
       assert.deepEqual(json, { statusCode: 200, type: 'application/vnd.microsoft.card.adaptive' })
+    })
+
+    it('processAsync returns 400 for missing required fields', async () => {
+      const { createServer } = await import('node:http')
+      const bot = new BotApplication()
+
+      const server = createServer((req, res) => { bot.processAsync(req, res) })
+      await new Promise<void>((resolve) => server.listen(0, resolve))
+      const addr = server.address() as { port: number }
+
+      const response = await fetch(`http://localhost:${addr.port}/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversation: { id: 'c' } })
+      })
+      const json = await response.json() as { error: string }
+      server.close()
+
+      assert.equal(response.status, 400)
+      assert.match(json.error, /type/)
+    })
+
+    it('processAsync returns 400 for empty serviceUrl', async () => {
+      const { createServer } = await import('node:http')
+      const bot = new BotApplication()
+
+      const server = createServer((req, res) => { bot.processAsync(req, res) })
+      await new Promise<void>((resolve) => server.listen(0, resolve))
+      const addr = server.address() as { port: number }
+
+      const response = await fetch(`http://localhost:${addr.port}/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'message', serviceUrl: '', conversation: { id: 'c' } })
+      })
+      const json = await response.json() as { error: string }
+      server.close()
+
+      assert.equal(response.status, 400)
+      assert.match(json.error, /serviceUrl/)
     })
   })
 })

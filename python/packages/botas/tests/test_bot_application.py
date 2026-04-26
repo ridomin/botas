@@ -94,7 +94,7 @@ class TestProcessBody:
 
         bot = BotApplication()
         body = json.dumps({"serviceUrl": "http://localhost:3978/", "conversation": {"id": "c"}})
-        with pytest.raises(Exception, match="type"):
+        with pytest.raises(ValueError, match="type"):
             await bot.process_body(body)
 
     async def test_raises_on_missing_service_url(self):
@@ -102,7 +102,7 @@ class TestProcessBody:
 
         bot = BotApplication()
         body = json.dumps({"type": "message", "conversation": {"id": "c"}})
-        with pytest.raises(Exception, match="serviceUrl"):
+        with pytest.raises(ValueError, match="serviceUrl"):
             await bot.process_body(body)
 
     async def test_raises_on_missing_conversation_id(self):
@@ -110,8 +110,48 @@ class TestProcessBody:
 
         bot = BotApplication()
         body = json.dumps({"type": "message", "serviceUrl": "http://localhost:3978/", "conversation": {}})
-        with pytest.raises(Exception, match="conversation"):
+        with pytest.raises(ValueError, match="conversation"):
             await bot.process_body(body)
+
+    async def test_raises_on_empty_type(self):
+        import json
+
+        bot = BotApplication()
+        body = json.dumps(
+            {
+                "type": "",
+                "serviceUrl": "http://localhost:3978/",
+                "conversation": {"id": "c"},
+            }
+        )
+        with pytest.raises(ValueError, match="type"):
+            await bot.process_body(body)
+
+    async def test_raises_on_empty_service_url(self):
+        import json
+
+        bot = BotApplication()
+        body = json.dumps(
+            {
+                "type": "message",
+                "serviceUrl": "",
+                "conversation": {"id": "c"},
+            }
+        )
+        with pytest.raises(ValueError, match="serviceUrl"):
+            await bot.process_body(body)
+
+    async def test_valid_activity_proceeds_normally(self):
+        bot = BotApplication()
+        received: list[TurnContext] = []
+
+        async def handler(ctx: TurnContext):
+            received.append(ctx)
+
+        bot.on("message", handler)
+        await bot.process_body(_make_body())
+        assert len(received) == 1
+        assert received[0].activity.type == "message"
 
 
 class TestTurnContext:
@@ -380,14 +420,42 @@ class TestOnInvoke:
         assert result.status == 200
         assert result.body == {"ok": True}
 
-    async def test_returns_501_when_no_handler_for_name(self):
+    async def test_returns_200_when_no_invoke_handlers_registered(self):
         bot = BotApplication()
+        result = await bot.process_body(_make_body(type="invoke", name="task/fetch"))
+        assert result is not None
+        assert result.status == 200
+        assert result.body == {}
+
+    async def test_returns_200_when_no_invoke_handlers_and_no_name(self):
+        bot = BotApplication()
+        result = await bot.process_body(_make_body(type="invoke"))
+        assert result is not None
+        assert result.status == 200
+        assert result.body == {}
+
+    async def test_returns_501_when_handlers_exist_but_none_match(self):
+        from botas.bot_application import InvokeResponse
+
+        bot = BotApplication()
+
+        async def handler(ctx: TurnContext) -> InvokeResponse:
+            return InvokeResponse(status=200, body={"ok": True})
+
+        bot.on_invoke("adaptiveCard/action", handler)
         result = await bot.process_body(_make_body(type="invoke", name="task/fetch"))
         assert result is not None
         assert result.status == 501
 
-    async def test_returns_501_when_invoke_has_no_name(self):
+    async def test_returns_501_when_handlers_exist_but_invoke_has_no_name(self):
+        from botas.bot_application import InvokeResponse
+
         bot = BotApplication()
+
+        async def handler(ctx: TurnContext) -> InvokeResponse:
+            return InvokeResponse(status=200, body={"ok": True})
+
+        bot.on_invoke("adaptiveCard/action", handler)
         result = await bot.process_body(_make_body(type="invoke"))
         assert result is not None
         assert result.status == 501
@@ -451,4 +519,55 @@ class TestOnInvoke:
             return InvokeResponse(status=200)
 
         await bot.process_body(_make_body(type="invoke", name="adaptiveCard/action"))
+        assert len(received) == 1
+
+
+class TestCaseInsensitiveHandlerLookup:
+    async def test_handler_registered_uppercase_matches_lowercase_activity(self):
+        bot = BotApplication()
+        received: list[TurnContext] = []
+
+        async def handler(ctx: TurnContext):
+            received.append(ctx)
+
+        bot.on("Message", handler)
+        await bot.process_body(_make_body(type="message"))
+        assert len(received) == 1
+        assert received[0].activity.type == "message"
+
+    async def test_handler_registered_lowercase_matches_uppercase_activity(self):
+        bot = BotApplication()
+        received: list[TurnContext] = []
+
+        async def handler(ctx: TurnContext):
+            received.append(ctx)
+
+        bot.on("typing", handler)
+        await bot.process_body(_make_body(type="Typing"))
+        assert len(received) == 1
+        assert received[0].activity.type == "Typing"
+
+    async def test_invoke_handler_case_insensitive(self):
+        from botas.bot_application import InvokeResponse
+
+        bot = BotApplication()
+        received: list[TurnContext] = []
+
+        async def handler(ctx: TurnContext) -> InvokeResponse:
+            received.append(ctx)
+            return InvokeResponse(status=200)
+
+        bot.on_invoke("AdaptiveCard/Action", handler)
+        await bot.process_body(_make_body(type="invoke", name="adaptivecard/action"))
+        assert len(received) == 1
+
+    async def test_decorator_case_insensitive(self):
+        bot = BotApplication()
+        received: list[TurnContext] = []
+
+        @bot.on("Message")
+        async def handler(ctx: TurnContext):
+            received.append(ctx)
+
+        await bot.process_body(_make_body(type="message"))
         assert len(received) == 1

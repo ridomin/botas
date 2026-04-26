@@ -1,10 +1,10 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <Description>Lightweight library for building Microsoft Bot Framework bots with ASP.NET Core</Description>
+    <Description>Lightweight library for building Microsoft Bot Service bots with ASP.NET Core</Description>
     <Authors>rido-min</Authors>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/rido-min/botas</PackageProjectUrl>
@@ -33,8 +33,10 @@
     <PackageReference Include="Microsoft.Identity.Web.AgentIdentities" Version="4.7.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.5" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.5" />
+    <!-- Pin to 10.0.7 to fix GHSA-9mv3-2cwr-p262 (high-severity DataProtection vulnerability) -->
+    <PackageReference Include="Microsoft.AspNetCore.DataProtection" Version="10.0.7" />
     <PackageReference Include="Microsoft.IdentityModel.Validators" Version="8.17.0" />
-    <PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.6" />
+    <PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.7" />
   </ItemGroup>
 
 </Project>

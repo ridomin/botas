@@ -20,6 +20,8 @@ export type CoreActivityHandler = (context: TurnContext) => Promise<void>
 /**
  * The response returned by an invoke activity handler.
  * The `status` is written as the HTTP status code; `body` is serialized as JSON.
+ *
+ * @public
  */
 export interface InvokeResponse {
   /** HTTP status code to return to the channel (e.g. `200`, `400`, `501`). */
@@ -54,7 +56,7 @@ export class BotHandlerException extends Error {
 }
 
 /**
- * Core bot application that processes incoming Bot Framework activities.
+ * Core bot application that processes incoming Bot Service activities.
  *
  * Web-server-agnostic — use {@link processAsync} with Express (or any
  * Node.js `http.Server`) and {@link processBody} with frameworks that manage
@@ -79,7 +81,7 @@ export class BotApplication {
   /** Resolved options for this application instance. */
   readonly options: BotApplicationOptions
 
-  /** Client for sending, updating, and deleting activities via the Bot Framework API. */
+  /** Client for sending, updating, and deleting activities via the Bot Service API. */
   readonly conversationClient: ConversationClient
 
   /**
@@ -124,7 +126,7 @@ export class BotApplication {
    * @returns `this` for method chaining.
    */
   on (type: string, handler: CoreActivityHandler): this {
-    this.handlers.set(type, handler)
+    this.handlers.set(type.toLowerCase(), handler)
     return this
   }
 
@@ -155,7 +157,7 @@ export class BotApplication {
    * @returns `this` for method chaining.
    */
   onInvoke (name: string, handler: InvokeActivityHandler): this {
-    this.invokeHandlers.set(name, handler)
+    this.invokeHandlers.set(name.toLowerCase(), handler)
     return this
   }
 
@@ -188,6 +190,9 @@ export class BotApplication {
       if (err instanceof RequestBodyTooLargeError) {
         res.writeHead(413)
         res.end(err.message)
+      } else if (err instanceof ActivityValidationError) {
+        res.writeHead(400, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: err.message }))
       } else {
         getLogger().error('processAsync returning 500: %s', err instanceof Error ? err.message : String(err))
         if (!res.headersSent) {
@@ -233,7 +238,7 @@ export class BotApplication {
   /**
    * Proactively send an activity to a conversation.
    *
-   * @param serviceUrl - Bot Framework service URL.
+   * @param serviceUrl - Bot Service service URL.
    * @param conversationId - Target conversation ID.
    * @param activity - CoreActivity payload to send.
    * @returns The {@link ResourceResponse} containing the new activity ID, or `undefined`.
@@ -251,7 +256,7 @@ export class BotApplication {
     if (context.activity.type === 'invoke') {
       return this.dispatchInvokeAsync(context)
     }
-    const handler = this.onActivity ?? this.handlers.get(context.activity.type)
+    const handler = this.onActivity ?? this.handlers.get(context.activity.type.toLowerCase())
     if (handler) {
       try {
         await handler(context)
@@ -266,9 +271,9 @@ export class BotApplication {
     return undefined
   }
 
-  private async dispatchInvokeAsync (context: TurnContext): Promise<InvokeResponse> {
+  private async dispatchInvokeAsync (context: TurnContext): Promise<InvokeResponse | undefined> {
     const name = context.activity.name
-    const handler = name ? this.invokeHandlers.get(name) : undefined
+    const handler = name ? this.invokeHandlers.get(name.toLowerCase()) : undefined
     if (!handler) {
       return { status: 501 }
     }
@@ -340,16 +345,29 @@ const MAX_ENTITIES_COUNT = 100
 /** Maximum number of attachments allowed on a single activity. */
 const MAX_ATTACHMENTS_COUNT = 50
 
+/**
+ * Thrown when an incoming activity fails structural validation (missing or
+ * empty required fields, oversized payloads, etc.).
+ *
+ * The HTTP layer should return `400 Bad Request` when this error is caught.
+ */
+export class ActivityValidationError extends Error {
+  constructor (message: string) {
+    super(message)
+    this.name = 'ActivityValidationError'
+  }
+}
+
 function assertCoreActivity (value: unknown): asserts value is CoreActivity {
   if (typeof value !== 'object' || value === null) {
-    throw new Error('CoreActivity must be a JSON object')
+    throw new ActivityValidationError('CoreActivity must be a JSON object')
   }
   const a = value as Record<string, unknown>
   if (typeof a['type'] !== 'string' || !a['type']) {
-    throw new Error('CoreActivity missing required field: type')
+    throw new ActivityValidationError('Missing required field: type')
   }
   if (typeof a['serviceUrl'] !== 'string' || !a['serviceUrl']) {
-    throw new Error('CoreActivity missing required field: serviceUrl')
+    throw new ActivityValidationError('Missing required field: serviceUrl')
   }
   if (
     typeof a['conversation'] !== 'object' ||
@@ -357,17 +375,17 @@ function assertCoreActivity (value: unknown): asserts value is CoreActivity {
     typeof (a['conversation'] as Record<string, unknown>)['id'] !== 'string' ||
     !(a['conversation'] as Record<string, unknown>)['id']
   ) {
-    throw new Error('CoreActivity missing required field: conversation.id')
+    throw new ActivityValidationError('Missing required field: conversation.id')
   }
   // #76: Validate activity field sizes to prevent abuse
   if (typeof a['text'] === 'string' && a['text'].length > MAX_ACTIVITY_TEXT_LENGTH) {
-    throw new Error(`CoreActivity text exceeds maximum length of ${MAX_ACTIVITY_TEXT_LENGTH}`)
+    throw new ActivityValidationError(`CoreActivity text exceeds maximum length of ${MAX_ACTIVITY_TEXT_LENGTH}`)
   }
   if (Array.isArray(a['entities']) && a['entities'].length > MAX_ENTITIES_COUNT) {
-    throw new Error(`CoreActivity entities array exceeds maximum size of ${MAX_ENTITIES_COUNT}`)
+    throw new ActivityValidationError(`CoreActivity entities array exceeds maximum size of ${MAX_ENTITIES_COUNT}`)
   }
   if (Array.isArray(a['attachments']) && a['attachments'].length > MAX_ATTACHMENTS_COUNT) {
-    throw new Error(`CoreActivity attachments array exceeds maximum size of ${MAX_ATTACHMENTS_COUNT}`)
+    throw new ActivityValidationError(`CoreActivity attachments array exceeds maximum size of ${MAX_ATTACHMENTS_COUNT}`)
   }
 }
 

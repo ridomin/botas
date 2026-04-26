@@ -31,7 +31,7 @@ def _get_additional_allowed_urls() -> list[str]:
 
 
 def _validate_service_url(service_url: str) -> None:
-    """Validate serviceUrl against Bot Framework allowlist. Prevents SSRF."""
+    """Validate serviceUrl against Bot Service allowlist. Prevents SSRF."""
     try:
         parsed = urlparse(service_url)
     except Exception:
@@ -93,7 +93,7 @@ class BotHandlerException(Exception):
 
 
 class BotApplication:
-    """Central entry point for building a bot with the Bot Framework.
+    """Central entry point for building a bot with the Bot Service.
 
     Manages the middleware pipeline, activity handler dispatch, outbound
     messaging via :class:`ConversationClient`, and OAuth2 token lifecycle
@@ -162,11 +162,11 @@ class BotApplication:
         if handler is None:
 
             def decorator(fn: ActivityHandler) -> ActivityHandler:
-                self._handlers[type] = fn
+                self._handlers[type.lower()] = fn
                 return fn
 
             return decorator
-        self._handlers[type] = handler
+        self._handlers[type.lower()] = handler
         return self
 
     def use(self, middleware: TurnMiddleware) -> "BotApplication":
@@ -206,11 +206,11 @@ class BotApplication:
         if handler is None:
 
             def decorator(fn: InvokeActivityHandler) -> InvokeActivityHandler:
-                self._invoke_handlers[name] = fn
+                self._invoke_handlers[name.lower()] = fn
                 return fn
 
             return decorator
-        self._invoke_handlers[name] = handler
+        self._invoke_handlers[name.lower()] = handler
         return self
 
     async def process_body(self, body: str) -> InvokeResponse | None:
@@ -221,11 +221,12 @@ class BotApplication:
         pipeline followed by handler dispatch.
 
         For ``invoke`` activities, returns the :class:`InvokeResponse` produced
-        by the registered handler (or a 501 response if none is registered).
+        by the registered handler, a 200 response if no invoke handlers are
+        registered, or a 501 response if handlers exist but none match.
         Returns ``None`` for all other activity types.
 
         Args:
-            body: Raw JSON string representing a Bot Framework activity.
+            body: Raw JSON string representing a Bot Service activity.
 
         Returns:
             An :class:`InvokeResponse` for invoke activities, or ``None``.
@@ -284,7 +285,7 @@ class BotApplication:
     async def _handle_activity_async(self, context: TurnContext) -> InvokeResponse | None:
         if context.activity.type == "invoke":
             return await self._dispatch_invoke_async(context)
-        handler = self.on_activity or self._handlers.get(context.activity.type)
+        handler = self.on_activity or self._handlers.get(context.activity.type.lower())
         if handler is None:
             return None
         try:
@@ -298,8 +299,10 @@ class BotApplication:
         return None
 
     async def _dispatch_invoke_async(self, context: TurnContext) -> InvokeResponse:
+        if not self._invoke_handlers:
+            return InvokeResponse(status=200, body={})
         name = context.activity.name
-        handler = self._invoke_handlers.get(name) if name else None
+        handler = self._invoke_handlers.get(name.lower()) if name else None
         if handler is None:
             return InvokeResponse(status=501)
         try:

@@ -24,8 +24,11 @@
 **Pattern**: For generated documentation that includes embedded XML or HTML tags incompatible with the target renderer (VitePress), add a post-processing sanitization step immediately after generation rather than trying to configure the generator itself.
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
-- **2026-04-16**: Promoted generated API docs to primary in VitePress config (`docs-site/.vitepress/config.mts`). Nav and sidebar "API Reference" now link to `/api/generated/{lang}/` (5 entries: .NET, Node.js botas-core, Node.js botas-express, Python botas, Python botas-fastapi). Removed the separate collapsed "API Reference (Generated)" sidebar section. Handwritten docs (`api/dotnet.md`, `api/nodejs.md`, `api/python.md`) kept on disk but unlinked — cleanup deferred. Also fixed duplicate `__init__` bug in `docs-site/scripts/generate_python_md_docs.py` where the methods loop re-emitted `__init__` already handled by the dedicated constructor section. Note: .NET generated docs are DocFX HTML served under `/api/generated/dotnet/`; may need VitePress `rewrites` or static-copy config if HTML doesn't render natively.
+- **2026-04-16**: Added API reference hyperlinks to all three language guides (`docs-site/languages/dotnet.md`, `nodejs.md`, `python.md`). **URL patterns per doc generator**: (1) DocFX (.NET): `/api/generated/dotnet/api/botas.{classname-lowercase}.html`; (2) TypeDoc (Node.js): `/api/generated/nodejs/botas-core/{classes|interfaces|functions|variables}/{Name}.html` (PascalCase preserved); (3) pdoc (Python): `/api/generated/python/botas/botas.html#{ClassName}` (anchor-based). **Convention**: VitePress new-tab links use `<a href="..." target="_blank"><code>Name</code></a>`. Only first mention per `##` section is linked. Code blocks, badge lines, and API Reference sections are never modified. 58 total links added (21 .NET, 19 Node.js, 18 Python).
+- **2026-04-16**: Created `docs-site/api-theme/` with per-tool brand customizations for DocFX, TypeDoc, and pdoc. **Approach**: (1) DocFX — overrode `layout/_master.tmpl` from modern template to inject BotAS nav bar after `<body>`; added `public/main.css` with brand colors and `.botas-nav` styles; updated root `docfx.json` template list to include custom dir. (2) TypeDoc — used `customCss` and `navigationLinks` in both `typedoc.json` files; CSS overrides color variables for light/dark themes. (3) pdoc — Jinja2 `module.html.jinja2` extending default template, injects nav bar in `{% block body %}` and brand CSS in `{% block head %}`; `generate-api-docs.sh` updated with `--template-directory`. **Key files**: `docs-site/api-theme/docfx/`, `docs-site/api-theme/typedoc/custom.css`, `docs-site/api-theme/pdoc/module.html.jinja2`, `docfx.json`, both `typedoc.json` files, `docs-site/generate-api-docs.sh`. **Brand**: orange `#ff9100` (dark) / `#a05500` (light), dark nav bg `#1b1b1f`, from `docs-site/.vitepress/theme/style.css`.
+- **2026-04-16**: Closed API reference documentation gap: added `ActivityType` and `TeamsActivityType` to both .NET and Python API docs. **Problem**: Node.js docs already documented these type constants, but .NET and Python API reference docs (`docs-site/api/dotnet.md`, `docs-site/api/python.md`) were missing them. **Solution**: (1) Added ActivityType and TeamsActivityType sections to both docs immediately after CoreActivityBuilder, before ChannelAccount (matches logical activity-related type grouping); (2) .NET docs show static classes with const strings; Python docs show Literal type aliases—each formatted idiomatically; (3) Maintained consistent description style across all three languages. **Pattern**: When a user-facing type is important enough to use in real code (handler registration, activity dispatch), it must be documented in the API reference with exact syntax examples. Cross-language feature parity verification: Node.js had these documented, .NET/Python did not → detected, fixed, and committed as PR #237. **Files**: `docs-site/api/dotnet.md` (lines 159-191), `docs-site/api/python.md` (lines 188-214).
 - **2026-04-15**: Added version selector dropdown to VitePress docs site navigation. Implemented: (1) `docs-site/versions.json` with structure `{ "current": "0.3", "versions": [] }` for CD-driven updates; (2) `docs-site/.vitepress/config.mts` reads versions.json at build time and generates nav dropdown items dynamically; (3) Dropdown placed as last nav item after Teams Features, showing `v{current} (latest|dev)` label; (4) "Latest" link points to `/botas/`, previous versions to `/botas/v{version}/`; (5) Uses only Node.js built-ins (fs, path), gracefully degrades if file missing. Design enables CD workflow to update versions.json before build, supporting multi-version doc deployments. See decision: `.squad/decisions/inbox/kif-version-selector.md`.
+- **2026-04-16**: **Docs cleanup — removed versions and restructured API refs (PR #244).** Removed version selector, VersionBadge component, `versions.json`, and `@viteplus/versions` dependency. Removed hand-curated `docs-site/api/` overview pages and API Reference from nav/sidebar. Added API Reference links at bottom of each language doc (dotnet.md, nodejs.md, python.md) pointing to generated HTML under `/botas/api/generated/`. Switched TypeDoc from `typedoc-plugin-markdown` to default HTML output (output to `docs-site/public/`). Switched Python docs from custom markdown generator to `pdoc -o`. Key pattern: API references are now standalone HTML (docfx/typedoc/pdoc defaults) served as static assets, not integrated into VitePress markdown.
 - **2026-04-13**: Updated Python run/startup instructions in `docs-site/getting-started.md`, `docs-site/auth-setup.md`, and `docs-site/languages/python.md` to promote `uv` as the recommended runner. All sample run commands now show: (1) `::: code-group` tabs with both bash and PowerShell examples, (2) `uv run --env-file ../../.env main.py` as the primary method (works cross-platform), (3) `::: details` blocks for users without uv showing pip/python fallback. Paths use backslashes for `cd` on PowerShell but forward slashes for `--env-file` (uv handles both). Updated sections in getting-started (lines 142-173), auth-setup (lines 128-161), and python.md (lines 351-372, 417-438, 470-491). Purpose: improve Windows developer experience and modernize Python setup guidance.
 - **2026-04-12**: Scaffolded Jekyll docs site in `/docs-site/` using `just-the-docs` remote theme. Logo lives at `docs/art/icon.svg` (copied to `docs-site/assets/images/logo.svg`). Nav structure: Home → Getting Started → Languages (.NET, Node.js, Python) → Middleware → Auth & Setup. All placeholder pages have front matter wired for just-the-docs navigation. Local preview: `cd docs-site && bundle install && bundle exec jekyll serve`.
 - **2026-04-13**: Reorganized docs/ folder. Moved specs to `specs/`, art assets to `art/`, Architecture.md and Setup.md into `specs/`. Updated all cross-references in README.md, AGENTS.md, copilot-instructions.md, and all three language package READMEs. The `docs/` directory is now fully removed; `docs-site/` remains for the Jekyll site.
@@ -178,3 +181,66 @@
 Cross-links in markdown tables must NOT be inside backtick code spans. Markdown does NOT render links inside backticks — everything between backticks is literal text. Fixed ~98 affected lines across nodejs.md and python.md by removing outer backticks from Type/Signature cells containing `[TypeName](#anchor)` syntax, and escaping `<>` as HTML entities (`&lt;`/`&gt;`) to prevent VitePress from interpreting generics as HTML tags. Example: `\\sendActivityAsync(...): Promise<[ResourceResponse](#resourceresponse)>\\ ` became `sendActivityAsync(...): Promise&lt;[ResourceResponse](#resourceresponse)&gt;`.
 
 **Pattern:** In table cells with cross-links: (1) remove outer backticks, (2) escape angle brackets, (3) leave method/property name column unchanged, (4) keep pipe escapes as-is. VitePress build passes after fix.
+
+### 2025-01-XX: Specs overhaul readability work (Issue #259)
+
+**What**: Fixed all broken links, added template headers, standardized terminology, and extracted user stories into a new spec file.
+
+**Links fixed** (6 total):
+1. `specs/architecture.md` line 106: `./specs/activity-schema.md` → `./activity-schema.md` (already in specs/)
+2. `specs/README.md` line 32: Simplified link to `../docs-site/middleware.md` (removed redundant Developer Docs link)
+3. `specs/protocol.md` line 268: Updated relative path in middleware reference
+4. `specs/contributing.md` line 147: Changed `./turn-context.md` → `./protocol.md#turncontext` (turn-context.md not created yet; linked to closest spec)
+5. `specs/activity-schema.md` line 6: Updated broken anchor `./README.md#coreactivitybuilder` → `./architecture.md#components`
+
+**Template headers added**:
+- `specs/setup.md`: Added purpose line, Status: Draft, and Overview section
+- `specs/architecture.md`: Added purpose line and Status: Draft at top
+- `specs/reference/dotnet.md`, `specs/reference/node.md`, `specs/reference/python.md`: Added Status: Draft and short Overview line
+
+**Terminology standardized**:
+- Replaced all "BotAS" with "botas" (lowercase) across: `architecture.md`, `configuration.md`, `activity-schema.md`, `samples.md`, `setup.md` (5 replacements total)
+- Maintained consistent capitalization: "botas" in prose, "Botas" at sentence start
+
+**User stories extracted**:
+- Created new `specs/user-stories.md` with all four Gherkin scenarios (US-001 Echo Bot, US-002 Proactive Messaging, US-003 Middleware Pipeline, US-004 Teams Features) plus acceptance criteria
+- Updated `specs/README.md` to remove inline user stories and link to new file: "See [User Stories](./user-stories.md) for detailed behavioral scenarios."
+
+**Files modified**: 10 (architecture.md, README.md, protocol.md, contributing.md, activity-schema.md, setup.md, configuration.md, samples.md, dotnet.md, node.md, python.md) + 1 new (user-stories.md)
+
+**Pattern**: Breaking large content blocks into separate spec files improves discoverability (user stories live in their own file, not buried in README) and keeps reference sections consistent across languages. Template headers (purpose + status) establish consistency and make the spec tree browsable.
+
+
+### 2026-XX-XX: Logging documentation created (logging.md)
+
+**Branch**: `docs/logging-guide`
+
+**What**: Created comprehensive logging documentation covering all three language implementations (.NET, Node.js, Python) with configuration examples and troubleshooting guidance.
+
+**Structure**:
+- Quick Start section with side-by-side configuration for all languages
+- Per-language deep dives: .NET (ILogger + appsettings.json), Node.js (Logger interface + debug/console/noop), Python (stdlib logging)
+- "What botas logs" section covering activity processing, token acquisition, JWT validation, and errors
+- Middleware integration section for custom logging
+- Troubleshooting section addressing common issues (logs not appearing, too many logs)
+
+**Key implementation details documented**:
+- .NET: Uses ASP.NET Core's `ILogger<BotApplication>` injected via `BotApp.Create(args)` DI setup; logs at Trace/Information/Error levels; configure via appsettings.json or launchSettings.json
+- Node.js: Custom Logger interface with 5 levels (trace/debug/info/warn/error); three built-in loggers (debugLogger with `debug` package + `DEBUG=botas:*` env var, consoleLogger, noopLogger); configure via `configure()` function at startup; supports custom logger implementations (pino, winston, etc.); MSAL logs wired through token-manager.ts
+- Python: Uses stdlib `logging` module with per-module loggers (`logging.getLogger(__name__)`); namespaces follow module path (`botas.bot_auth`, `botas.bot_http_client`); configure via basicConfig or dictConfig
+
+**VitePress integration**:
+- Added "Logging" to sidebar in `docs-site/.vitepress/config.mts` (after Middleware, before Teams Features)
+- Added to Quick Links in `docs-site/index.md` (between Middleware and Authentication)
+
+**Files created/modified**:
+- `docs-site/logging.md` (new file, ~11.7KB)
+- `docs-site/.vitepress/config.mts` (sidebar update)
+- `docs-site/index.md` (Quick Links update)
+
+**Pattern**: Multi-language docs should follow VitePress code-group blocks for side-by-side comparisons, use collapsible sections (`:::`) for alternatives, and link to existing specs/guides instead of duplicating content. Follow middleware.md and authentication.md structure: overview → per-language sections → what the library logs → when to customize → troubleshooting → learn more.
+
+**Reference files**:
+- `node/packages/botas-core/src/logger.ts` (Node.js Logger interface and built-in implementations)
+- `dotnet/src/Botas/BotApplication.cs` (ILogger usage in .NET)
+- `python/packages/botas/src/botas/bot_auth.py` (Python stdlib logging usage)

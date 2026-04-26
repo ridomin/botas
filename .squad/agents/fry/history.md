@@ -67,3 +67,55 @@
 - CoreActivity only types common fields; Bot Framework fields like `membersAdded`, `reactionsAdded`, `action` arrive at runtime via JSON parse but need `as Record<string, unknown>` cast to access
 - Teams-sample now demonstrates 6 activity types: conversationUpdate, messageReaction, typing, installationUpdate, message, invoke (PR #220, issue #218)
 - JSDoc coverage added to all 11 non-spec source files in `node/packages/botas/src/` for issue #224; build + 112 tests pass clean
+
+### Error Response JSON Format (2026-04-25)
+- **Standardized 401 auth error responses** to return JSON `{ error: 'Unauthorized', message: '<specific error>' }` instead of plain text
+- Updated `ExpressResponse` type to include `json()` method for proper Content-Type headers
+- Added 2 tests verifying JSON error format on missing header and invalid token scenarios
+- No `botas-hono` package exists — only Express adapter needed changes
+- 405 handling lives on separate branch `fix/node-get-405` (PR #255) — not modified here
+- **PR:** #257 — Fixes #247 (Node.js part)
+
+### Node.js Specs Overhaul (2026-04-25)
+- **Fixed `specs/reference/node.md` for accuracy vs. implementation:**
+  - Corrected import paths: `botas` → `botas-core` (core API) and `botas-express` (Express adapter)
+  - Clarified `botAuthHono` is NOT exported; users must import `validateBotToken` + `BotAuthError` from `botas-core` and write custom middleware
+  - Added `onInvoke()` method to BotApplication class signature (invoke handlers return InvokeResponse)
+  - Updated configuration table: `TENANT_ID` defaults to `"botframework.com"` (not `"common"`), added `ALLOWED_SERVICE_URLS` env var for SSRF protection
+  - Added `MANAGED_IDENTITY_CLIENT_ID` to configuration table
+  - Updated Language-Specific Differences table to reflect `validateBotToken()` as the auth import for custom middleware
+  - Replaced `botAuthHono()` import example with complete custom middleware implementation in Hono sample
+  - Added new `validateBotToken()` section explaining direct use for non-Express frameworks
+- **Auth library confirmed:** `jose` (not `jsonwebtoken` + `jwks-rsa`)
+- **Key audit finding:** `botAuthHono` is sample code only, not an exported library function
+- **Issue:** #259 (docs/specs-overhaul-259)
+
+### Invoke Dispatch Fix (2026-04-25)
+- **Fixed `dispatchInvokeAsync`** to distinguish between zero invoke handlers (return 200 {}) vs handlers exist but none match (return 501)
+- Key change in `bot-application.ts`: check `this.invokeHandlers.size > 0` before returning 501
+- Return type changed from `Promise<InvokeResponse>` to `Promise<InvokeResponse | undefined>` — undefined means 200 {}
+- Updated 2 existing tests and added 2 new tests (4 invoke dispatch tests total covering all branches)
+- All 114 core tests pass clean
+- **Branch:** `fix/invoke-dispatch-262` — Fixes #262
+### Case-Insensitive Handler Lookup (2026-04-25)
+- **Made activity type handler lookup case-insensitive** in `bot-application.ts` (issue #263)
+- Normalized keys to lowercase on both registration (`on()`, `onInvoke()`) and lookup (`handleCoreActivityAsync`, `dispatchInvokeAsync`)
+- Added 2 tests: "Message" registration matches "message" activity, "typing" registration matches "Typing" activity
+- All 126 tests pass across all workspaces (114 botas-core + 12 botas-express), 0 failures
+- **Branch:** `fix/case-insensitive-handler-lookup-263`
+### Promote id and channelId to typed CoreActivity fields (2026-04-25)
+- **Added `id` and `channelId`** as optional string properties on `CoreActivity` interface in `node/packages/botas-core/src/core-activity.ts`
+- Node.js uses plain TypeScript interfaces + `JSON.parse` — no custom fromJson/toJson logic needed; adding to the interface is sufficient
+- Added 4 tests: typed deserialization, not-in-properties check, JSON round-trip, missing-fields graceful handling
+- All existing tests still pass; build clean
+- **Issue:** #261 (fix/typed-id-channelid-261)
+
+### Input Validation 400 Response (2026-04-25)
+- **Added `ActivityValidationError` class** — typed error for activity validation failures, mirrors `BotAuthError` pattern
+- `assertCoreActivity` now throws `ActivityValidationError` instead of plain `Error` for all validation failures
+- `processAsync` catches `ActivityValidationError` → returns HTTP 400 with JSON `{ error: '<message>' }` (was 500)
+- `processBody` throws `ActivityValidationError` which callers (Hono adapters etc.) can catch and map to 400
+- New tests: empty string type/serviceUrl, processAsync 400 integration tests
+- All 119 core + 12 express tests pass
+- **Branch:** `fix/input-validation-400-260` — Fixes #260
+
