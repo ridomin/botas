@@ -1,0 +1,10 @@
+[project]
+name = "hermes-sample-fastapi"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "botas",
+    "hermes-botas",
+    "fastapi>=0.111",
+    "uvicorn[standard]>=0.30",
+]
