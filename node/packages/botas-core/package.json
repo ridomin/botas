@@ -45,7 +45,6 @@
     "README.md"
   ],
   "dependencies": {
-    "-": "^0.0.1",
     "@azure/msal-node": "^5.1.2",
     "axios": "^1.15.0",
     "debug": "^4.4.3",
