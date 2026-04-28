@@ -48,7 +48,7 @@ public static class TeamsActivityType
 /// ensuring they round-trip safely through serialization.
 /// Used with <see cref="System.Text.Json.Serialization.JsonExtensionDataAttribute"/>.
 /// </summary>
-public class ExtendedPropertiesDictionary : Dictionary<string, object?> { }
+internal class ExtendedPropertiesDictionary : Dictionary<string, object?> { }
 
 /// <summary>
 /// Represents a Bot Service activity — the fundamental unit of communication between a bot and a channel.
@@ -94,7 +94,7 @@ public class CoreActivity(string type = "message")
     [JsonPropertyName("attachments")] public JsonArray? Attachments { get; set; }
 
     /// <summary>Extension data dictionary that preserves unknown JSON properties during round-trip serialization.</summary>
-    [JsonExtensionData] public ExtendedPropertiesDictionary Properties { get; set; } = [];
+    [JsonExtensionData] public Dictionary<string, object?> Properties { get; set; } = [];
 
     /// <summary>
     /// Default JSON serializer options used for activity serialization and deserialization.

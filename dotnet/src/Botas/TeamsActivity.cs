@@ -7,7 +7,7 @@ namespace Botas;
 /// <summary>
 /// Microsoft Teams tenant information from channel data.
 /// </summary>
-public class TenantInfo
+internal class TenantInfo
 {
     /// <summary>The Azure AD tenant ID.</summary>
     [JsonPropertyName("id")] public string? Id { get; set; }
@@ -19,7 +19,7 @@ public class TenantInfo
 /// <summary>
 /// Information about a Microsoft Teams channel.
 /// </summary>
-public class ChannelInfo
+internal class ChannelInfo
 {
     /// <summary>Unique identifier for the Teams channel.</summary>
     [JsonPropertyName("id")] public string? Id { get; set; }
@@ -34,7 +34,7 @@ public class ChannelInfo
 /// <summary>
 /// Information about a Microsoft Teams team.
 /// </summary>
-public class TeamInfo
+internal class TeamInfo
 {
     /// <summary>Unique identifier for the team.</summary>
     [JsonPropertyName("id")] public string? Id { get; set; }
@@ -52,7 +52,7 @@ public class TeamInfo
 /// <summary>
 /// Information about a Microsoft Teams meeting.
 /// </summary>
-public class MeetingInfo
+internal class MeetingInfo
 {
     /// <summary>Unique identifier for the meeting.</summary>
     [JsonPropertyName("id")] public string? Id { get; set; }
@@ -64,7 +64,7 @@ public class MeetingInfo
 /// <summary>
 /// Notification settings for a Teams activity.
 /// </summary>
-public class NotificationInfo
+internal class NotificationInfo
 {
     /// <summary>When <c>true</c>, the activity triggers an alert/notification in the Teams client.</summary>
     [JsonPropertyName("alert")] public bool? Alert { get; set; }
@@ -77,7 +77,7 @@ public class NotificationInfo
 /// Teams-specific channel data containing tenant, channel, team, meeting, and notification information.
 /// Deserialized from the <c>channelData</c> property of a Teams activity.
 /// </summary>
-public class TeamsChannelData
+internal class TeamsChannelData
 {
     /// <summary>Tenant information for the Teams context.</summary>
     [JsonPropertyName("tenant")] public TenantInfo? Tenant { get; set; }
@@ -123,7 +123,7 @@ public class TeamsConversation : Conversation
 public class TeamsActivity : CoreActivity
 {
     /// <summary>Teams-specific channel data (tenant, channel, team, meeting, notification).</summary>
-    [JsonPropertyName("channelData")] public TeamsChannelData? ChannelData { get; set; }
+    [JsonPropertyName("channelData")] [JsonInclude] internal TeamsChannelData? ChannelData { get; set; }
 
     /// <summary>UTC timestamp when the activity was sent.</summary>
     [JsonPropertyName("timestamp")] public string? Timestamp { get; set; }
@@ -241,7 +241,7 @@ public class TeamsActivityBuilder
     }
 
     /// <summary>Set the Teams-specific channel data.</summary>
-    public TeamsActivityBuilder WithChannelData(TeamsChannelData? channelData)
+    internal TeamsActivityBuilder WithChannelData(TeamsChannelData? channelData)
     {
         _activity.ChannelData = channelData;
         return this;

@@ -23,7 +23,7 @@ public class BotHandlerException(string message, Exception ex, CoreActivity acti
 /// The <see cref="Status"/> is written as the HTTP status code;
 /// <see cref="Body"/> is serialized as JSON.
 /// </summary>
-public class InvokeResponse
+internal class InvokeResponse
 {
     /// <summary>HTTP status code to return to the channel (e.g. 200, 400, 501).</summary>
     public int Status { get; set; }
@@ -131,7 +131,7 @@ public class BotApplication
     /// written directly to the HTTP response for invoke activities.
     /// Only one handler per name is supported; registering the same name replaces the previous handler.
     /// </summary>
-    public BotApplication OnInvoke(string name, Func<TurnContext, CancellationToken, Task<InvokeResponse>> handler)
+    internal BotApplication OnInvoke(string name, Func<TurnContext, CancellationToken, Task<InvokeResponse>> handler)
     {
         _invokeHandlers[name] = handler;
         return this;

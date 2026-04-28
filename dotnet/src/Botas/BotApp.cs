@@ -88,7 +88,7 @@ public class BotApp
     /// Register a handler for an invoke activity by its <c>activity.Name</c> sub-type.
     /// Delegates to <see cref="BotApplication.OnInvoke"/>.
     /// </summary>
-    public BotApp OnInvoke(string name, Func<TurnContext, CancellationToken, Task<InvokeResponse>> handler)
+    internal BotApp OnInvoke(string name, Func<TurnContext, CancellationToken, Task<InvokeResponse>> handler)
     {
         _pendingInvokeHandlers.Add((name, handler));
         return this;
