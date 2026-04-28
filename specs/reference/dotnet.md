@@ -267,7 +267,6 @@ var reply = new TeamsActivityBuilder()
     .WithConversationReference(activity)
     .WithText("<at>User</at> hello")
     .AddMention(account)
-    .WithChannelData(new TeamsChannelData { ... })
     .WithSuggestedActions(new SuggestedActions { ... })
     .AddAdaptiveCardAttachment(cardJson)
     .Build();

@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Awaitable, Callable, Protocol, runtime_checkab
 if TYPE_CHECKING:
     from botas.turn_context import TurnContext
 
-_NextTurn = Callable[[], Awaitable[None]]
+NextTurn = Callable[[], Awaitable[None]]
 """Type alias for the ``next`` callback passed to middleware.
 
 Call ``await next()`` to continue the pipeline; skip it to short-circuit.
@@ -31,7 +31,7 @@ class TurnMiddleware(Protocol):
     async def on_turn(
         self,
         context: "TurnContext",
-        next: _NextTurn,
+        next: NextTurn,
     ) -> None:
         """Process a turn and optionally delegate to the next middleware.
 
