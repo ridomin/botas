@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING
 
-from botas.i_turn_middleware import NextTurn
+from botas.i_turn_middleware import _NextTurn
 
 if TYPE_CHECKING:
     from botas.turn_context import TurnContext
@@ -25,7 +25,7 @@ class RemoveMentionMiddleware:
         bot.use(RemoveMentionMiddleware())
     """
 
-    async def on_turn(self, context: TurnContext, next: NextTurn) -> None:
+    async def on_turn(self, context: TurnContext, next: _NextTurn) -> None:
         """Remove bot @mention text from the activity, then continue the pipeline.
 
         Iterates over ``activity.entities`` looking for ``mention`` entities
