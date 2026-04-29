@@ -7,19 +7,19 @@ namespace Botas;
 /// <summary>
 /// Microsoft Teams tenant information from channel data.
 /// </summary>
-internal class TenantInfo
+public class TenantInfo
 {
     /// <summary>The Azure AD tenant ID.</summary>
     [JsonPropertyName("id")] public string? Id { get; set; }
 
     /// <summary>Extension data dictionary that preserves unknown JSON properties during round-trip serialization.</summary>
-    [JsonExtensionData] public ExtendedPropertiesDictionary Properties { get; set; } = [];
+    [JsonExtensionData] public Dictionary<string, object?> Properties { get; set; } = [];
 }
 
 /// <summary>
 /// Information about a Microsoft Teams channel.
 /// </summary>
-internal class ChannelInfo
+public class ChannelInfo
 {
     /// <summary>Unique identifier for the Teams channel.</summary>
     [JsonPropertyName("id")] public string? Id { get; set; }
@@ -28,13 +28,13 @@ internal class ChannelInfo
     [JsonPropertyName("name")] public string? Name { get; set; }
 
     /// <summary>Extension data dictionary that preserves unknown JSON properties during round-trip serialization.</summary>
-    [JsonExtensionData] public ExtendedPropertiesDictionary Properties { get; set; } = [];
+    [JsonExtensionData] public Dictionary<string, object?> Properties { get; set; } = [];
 }
 
 /// <summary>
 /// Information about a Microsoft Teams team.
 /// </summary>
-internal class TeamInfo
+public class TeamInfo
 {
     /// <summary>Unique identifier for the team.</summary>
     [JsonPropertyName("id")] public string? Id { get; set; }
@@ -46,38 +46,38 @@ internal class TeamInfo
     [JsonPropertyName("aadGroupId")] public string? AadGroupId { get; set; }
 
     /// <summary>Extension data dictionary that preserves unknown JSON properties during round-trip serialization.</summary>
-    [JsonExtensionData] public ExtendedPropertiesDictionary Properties { get; set; } = [];
+    [JsonExtensionData] public Dictionary<string, object?> Properties { get; set; } = [];
 }
 
 /// <summary>
 /// Information about a Microsoft Teams meeting.
 /// </summary>
-internal class MeetingInfo
+public class MeetingInfo
 {
     /// <summary>Unique identifier for the meeting.</summary>
     [JsonPropertyName("id")] public string? Id { get; set; }
 
     /// <summary>Extension data dictionary that preserves unknown JSON properties during round-trip serialization.</summary>
-    [JsonExtensionData] public ExtendedPropertiesDictionary Properties { get; set; } = [];
+    [JsonExtensionData] public Dictionary<string, object?> Properties { get; set; } = [];
 }
 
 /// <summary>
 /// Notification settings for a Teams activity.
 /// </summary>
-internal class NotificationInfo
+public class NotificationInfo
 {
     /// <summary>When <c>true</c>, the activity triggers an alert/notification in the Teams client.</summary>
     [JsonPropertyName("alert")] public bool? Alert { get; set; }
 
     /// <summary>Extension data dictionary that preserves unknown JSON properties during round-trip serialization.</summary>
-    [JsonExtensionData] public ExtendedPropertiesDictionary Properties { get; set; } = [];
+    [JsonExtensionData] public Dictionary<string, object?> Properties { get; set; } = [];
 }
 
 /// <summary>
 /// Teams-specific channel data containing tenant, channel, team, meeting, and notification information.
 /// Deserialized from the <c>channelData</c> property of a Teams activity.
 /// </summary>
-internal class TeamsChannelData
+public class TeamsChannelData
 {
     /// <summary>Tenant information for the Teams context.</summary>
     [JsonPropertyName("tenant")] public TenantInfo? Tenant { get; set; }
@@ -95,7 +95,7 @@ internal class TeamsChannelData
     [JsonPropertyName("notification")] public NotificationInfo? Notification { get; set; }
 
     /// <summary>Extension data dictionary that preserves unknown JSON properties during round-trip serialization.</summary>
-    [JsonExtensionData] public ExtendedPropertiesDictionary Properties { get; set; } = [];
+    [JsonExtensionData] public Dictionary<string, object?> Properties { get; set; } = [];
 }
 
 /// <summary>
@@ -123,7 +123,7 @@ public class TeamsConversation : Conversation
 public class TeamsActivity : CoreActivity
 {
     /// <summary>Teams-specific channel data (tenant, channel, team, meeting, notification).</summary>
-    [JsonPropertyName("channelData")] [JsonInclude] internal TeamsChannelData? ChannelData { get; set; }
+    [JsonPropertyName("channelData")] [JsonInclude] public TeamsChannelData? ChannelData { get; set; }
 
     /// <summary>UTC timestamp when the activity was sent.</summary>
     [JsonPropertyName("timestamp")] public string? Timestamp { get; set; }
@@ -241,7 +241,7 @@ public class TeamsActivityBuilder
     }
 
     /// <summary>Set the Teams-specific channel data.</summary>
-    internal TeamsActivityBuilder WithChannelData(TeamsChannelData? channelData)
+    public TeamsActivityBuilder WithChannelData(TeamsChannelData? channelData)
     {
         _activity.ChannelData = channelData;
         return this;

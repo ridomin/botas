@@ -326,6 +326,7 @@ For setup details on Azure Bot registration and credentials, see the [Setup Guid
 | <a href="/api/generated/dotnet/api/botas.bothandlerexception.html" target="_blank"><code>BotHandlerException</code></a> | Wraps handler exceptions with the triggering activity |
 | <a href="/api/generated/dotnet/api/botas.teamsactivity.html" target="_blank"><code>TeamsActivity</code></a> | Teams-specific activity — `ChannelData`, `Timestamp`, `Locale`, <a href="/api/generated/dotnet/api/botas.suggestedactions.html" target="_blank"><code>SuggestedActions</code></a>, and `FromActivity()` factory |
 | <a href="/api/generated/dotnet/api/botas.teamsactivitybuilder.html" target="_blank"><code>TeamsActivityBuilder</code></a> | Fluent builder for Teams replies — `AddMention()`, `AddAdaptiveCardAttachment()`, `WithSuggestedActions()` |
+| <a href="/api/generated/dotnet/api/botas.teamschanneldata.html" target="_blank"><code>TeamsChannelData</code></a> | Typed Teams channel metadata — `Tenant`, `Channel`, `Team`, `Meeting`, `Notification` |
 | <a href="/api/generated/dotnet/api/botas.suggestedactions.html" target="_blank"><code>SuggestedActions</code></a> | Quick-reply buttons — contains `CardAction[]` |
 | <a href="/api/generated/dotnet/api/botas.entity.html" target="_blank"><code>Entity</code></a> | Activity entity (e.g. mention) with extension data |
 | <a href="/api/generated/dotnet/api/botas.attachment.html" target="_blank"><code>Attachment</code></a> | File or card attachment with `ContentType`, `Content`, and extension data |
