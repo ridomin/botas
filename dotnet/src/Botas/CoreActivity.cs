@@ -44,13 +44,6 @@ public static class TeamsActivityType
 }
 
 /// <summary>
-/// Dictionary that captures unknown JSON properties during deserialization,
-/// ensuring they round-trip safely through serialization.
-/// Used with <see cref="System.Text.Json.Serialization.JsonExtensionDataAttribute"/>.
-/// </summary>
-internal class ExtendedPropertiesDictionary : Dictionary<string, object?> { }
-
-/// <summary>
 /// Represents a Bot Service activity — the fundamental unit of communication between a bot and a channel.
 /// Contains typed fields for common properties and an extension dictionary that preserves unknown JSON properties.
 /// </summary>
