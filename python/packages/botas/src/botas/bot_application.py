@@ -13,7 +13,7 @@ from botas.i_turn_middleware import TurnMiddleware
 from botas.token_manager import BotApplicationOptions, TokenManager
 from botas.turn_context import TurnContext
 
-ActivityHandler = Callable[[TurnContext], Awaitable[None]]
+_ActivityHandler = Callable[[TurnContext], Awaitable[None]]
 """Type alias for an async activity handler: ``async def handler(ctx: TurnContext) -> None``."""
 
 _ALLOWED_SERVICE_URL_PATTERNS = [
@@ -61,7 +61,7 @@ class InvokeResponse:
     """Optional response body serialized as JSON. Omitted when ``None``."""
 
 
-InvokeActivityHandler = Callable[[TurnContext], Awaitable[InvokeResponse]]
+_InvokeActivityHandler = Callable[[TurnContext], Awaitable[InvokeResponse]]
 
 
 class BotHandlerException(Exception):
@@ -124,9 +124,9 @@ class BotApplication:
         token_provider = self._token_manager.get_bot_token
         self.conversation_client = ConversationClient(token_provider)
         self._middlewares: list[TurnMiddleware] = []
-        self._handlers: dict[str, ActivityHandler] = {}
-        self._invoke_handlers: dict[str, InvokeActivityHandler] = {}
-        self.on_activity: Optional[ActivityHandler] = None
+        self._handlers: dict[str, _ActivityHandler] = {}
+        self._invoke_handlers: dict[str, _InvokeActivityHandler] = {}
+        self.on_activity: Optional[_ActivityHandler] = None
 
     @property
     def appid(self) -> Optional[str]:
@@ -136,7 +136,7 @@ class BotApplication:
     def on(
         self,
         type: str,
-        handler: Optional[ActivityHandler] = None,
+        handler: Optional[_ActivityHandler] = None,
     ) -> Any:
         """Register a handler for an activity type.
 
@@ -161,7 +161,7 @@ class BotApplication:
         """
         if handler is None:
 
-            def decorator(fn: ActivityHandler) -> ActivityHandler:
+            def decorator(fn: _ActivityHandler) -> _ActivityHandler:
                 self._handlers[type.lower()] = fn
                 return fn
 
@@ -188,7 +188,7 @@ class BotApplication:
     def on_invoke(
         self,
         name: str,
-        handler: Optional[InvokeActivityHandler] = None,
+        handler: Optional[_InvokeActivityHandler] = None,
     ) -> Any:
         """Register a handler for an invoke activity by its ``activity.name`` sub-type.
 
@@ -205,7 +205,7 @@ class BotApplication:
         """
         if handler is None:
 
-            def decorator(fn: InvokeActivityHandler) -> InvokeActivityHandler:
+            def decorator(fn: _InvokeActivityHandler) -> _InvokeActivityHandler:
                 self._invoke_handlers[name.lower()] = fn
                 return fn
 
