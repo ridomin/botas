@@ -177,17 +177,43 @@ public class BotApplication
             _logger.LogTrace("Received activity type: {Type}", activity.Type);
         }
 
+        BotMeter.ActivitiesReceived.Add(1, new KeyValuePair<string, object?>("activity.type", activity.Type));
+        long startTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
+
+        using var turnActivity = BotActivitySource.Source.StartActivity("botas.turn");
+        turnActivity?.SetTag("activity.type", activity.Type);
+        turnActivity?.SetTag("activity.id", activity.Id);
+        turnActivity?.SetTag("conversation.id", activity.Conversation?.Id);
+        turnActivity?.SetTag("channel.id", activity.ChannelId);
+        turnActivity?.SetTag("bot.id", AppId);
+
         using (_logger.BeginScope("Processing activity {Type}", activity.Type))
         {
             var context = new TurnContext(this, activity);
             InvokeResponse? invokeResponse = null;
             try
             {
-                var callback = OnActivity is not null
-                    ? (Func<TurnContext, CancellationToken, Task>)((ctx, ct) => OnActivity(ctx, ct))
-                    : DispatchToHandler;
+                if (OnActivity is not null)
+                {
+                    Func<TurnContext, CancellationToken, Task> catchAllCallback = async (ctx, ct) =>
+                    {
+                        using var handlerActivity = BotActivitySource.Source.StartActivity("botas.handler");
+                        handlerActivity?.SetTag("handler.type", ctx.Activity.Type);
+                        handlerActivity?.SetTag("handler.dispatch", "catchall");
+                        try
+                        {
+                            await OnActivity(ctx, ct);
+                        }
+                        catch
+                        {
+                            BotMeter.HandlerErrors.Add(1, new KeyValuePair<string, object?>("activity.type", ctx.Activity.Type));
+                            throw;
+                        }
+                    };
 
-                if (string.Equals(activity.Type, "invoke", StringComparison.OrdinalIgnoreCase))
+                    await _turnMiddleware.RunPipeline(context, catchAllCallback, 0, cancellationToken).ConfigureAwait(false);
+                }
+                else if (string.Equals(activity.Type, "invoke", StringComparison.OrdinalIgnoreCase))
                 {
                     Task<InvokeResponse> invokeCallback(TurnContext ctx, CancellationToken ct) => DispatchInvokeHandler(ctx, ct);
                     await _turnMiddleware.RunPipeline(context, async (ctx, ct) =>
@@ -197,7 +223,7 @@ public class BotApplication
                 }
                 else
                 {
-                    await _turnMiddleware.RunPipeline(context, callback, 0, cancellationToken).ConfigureAwait(false);
+                    await _turnMiddleware.RunPipeline(context, DispatchToHandler, 0, cancellationToken).ConfigureAwait(false);
                 }
             }
             catch (Exception ex)
@@ -215,6 +241,8 @@ public class BotApplication
             }
             finally
             {
+                double elapsedMs = System.Diagnostics.Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds;
+                BotMeter.TurnDuration.Record(elapsedMs, new KeyValuePair<string, object?>("activity.type", activity.Type));
                 _logger.LogInformation("Finished processing activity {Type}", activity.Type);
             }
 
@@ -268,13 +296,23 @@ public class BotApplication
         return await _conversationClient.SendActivityAsync(activity, cancellationToken);
     }
 
-    internal Task DispatchToHandler(TurnContext context, CancellationToken cancellationToken)
+    internal async Task DispatchToHandler(TurnContext context, CancellationToken cancellationToken)
     {
         if (_handlers.TryGetValue(context.Activity.Type, out var handler))
         {
-            return handler(context, cancellationToken);
+            using var handlerActivity = BotActivitySource.Source.StartActivity("botas.handler");
+            handlerActivity?.SetTag("handler.type", context.Activity.Type);
+            handlerActivity?.SetTag("handler.dispatch", "type");
+            try
+            {
+                await handler(context, cancellationToken).ConfigureAwait(false);
+            }
+            catch
+            {
+                BotMeter.HandlerErrors.Add(1, new KeyValuePair<string, object?>("activity.type", context.Activity.Type));
+                throw;
+            }
         }
-        return Task.CompletedTask;
     }
 
     internal async Task<InvokeResponse> DispatchInvokeHandler(TurnContext context, CancellationToken cancellationToken)
@@ -287,12 +325,16 @@ public class BotApplication
         var name = context.Activity.Name;
         if (name is not null && _invokeHandlers.TryGetValue(name, out var handler))
         {
+            using var handlerActivity = BotActivitySource.Source.StartActivity("botas.handler");
+            handlerActivity?.SetTag("handler.type", context.Activity.Name ?? context.Activity.Type);
+            handlerActivity?.SetTag("handler.dispatch", "invoke");
             try
             {
                 return await handler(context, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
+                BotMeter.HandlerErrors.Add(1, new KeyValuePair<string, object?>("activity.type", "invoke"));
                 throw new BotHandlerException($"Invoke handler for \"{name}\" threw an error", ex, context.Activity);
             }
         }
@@ -317,24 +359,34 @@ internal class TurnMiddleware : ITurnMiddleWare, IEnumerable<ITurnMiddleWare>
         await next(cancellationToken).ConfigureAwait(false);
     }
 
-    public Task RunPipeline(TurnContext context, Func<TurnContext, CancellationToken, Task>? callback, int nextMiddlewareIndex, CancellationToken cancellationToken)
+    public async Task RunPipeline(TurnContext context, Func<TurnContext, CancellationToken, Task>? callback, int nextMiddlewareIndex, CancellationToken cancellationToken)
     {
         if (nextMiddlewareIndex == _middlewares.Count)
         {
             if (callback is not null)
             {
-                return callback!(context, cancellationToken) ?? Task.CompletedTask;
+                await (callback!(context, cancellationToken) ?? Task.CompletedTask).ConfigureAwait(false);
             }
-            else
-            {
-                return Task.CompletedTask;
-            }
+            return;
         }
         ITurnMiddleWare nextMiddleware = _middlewares[nextMiddlewareIndex];
-        return nextMiddleware.OnTurnAsync(
-            context,
-            (ct) => RunPipeline(context, callback, nextMiddlewareIndex + 1, ct),
-            cancellationToken);
+        string mwName = nextMiddleware.GetType().Name;
+        long mwStart = System.Diagnostics.Stopwatch.GetTimestamp();
+        using var mwActivity = BotActivitySource.Source.StartActivity("botas.middleware");
+        mwActivity?.SetTag("middleware.name", mwName);
+        mwActivity?.SetTag("middleware.index", nextMiddlewareIndex);
+        try
+        {
+            await nextMiddleware.OnTurnAsync(
+                context,
+                (ct) => RunPipeline(context, callback, nextMiddlewareIndex + 1, ct),
+                cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            double elapsedMs = System.Diagnostics.Stopwatch.GetElapsedTime(mwStart).TotalMilliseconds;
+            BotMeter.MiddlewareDuration.Record(elapsedMs, new KeyValuePair<string, object?>("middleware.name", mwName));
+        }
 
     }
 

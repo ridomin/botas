@@ -17,7 +17,6 @@ A lightweight, multi-language library for building [Microsoft Teams](https://lea
 
 ## Ready in ~5 seconds (pick your language)
 
-::: code-group
 
 ```csharp [.NET]
 // Install:
@@ -75,8 +74,6 @@ app.start()
 # cd python/samples/echo-bot && uv run --env-file ../../.env main.py
 ```
 
-:::
-
 ---
 
 ## Setup (30 seconds)
@@ -107,6 +104,7 @@ Open the `installLink` from the Teams CLI output in your browser to add the bot 
 | **Language guides** | [.NET](https://rido-min.github.io/botas/languages/dotnet) · [Node.js](https://rido-min.github.io/botas/languages/nodejs) · [Python](https://rido-min.github.io/botas/languages/python) |
 | **Teams features** | [Mentions, Adaptive Cards, Suggested Actions](https://rido-min.github.io/botas/teams-features) |
 | **Middleware** | [Extend the turn pipeline](https://rido-min.github.io/botas/middleware) |
+| **Observability** | [OpenTelemetry tracing, metrics, logs](https://rido-min.github.io/botas/observability) |
 | **Authentication** | [Two-auth model deep dive](https://rido-min.github.io/botas/authentication) |
 | **Architecture** | [Turn pipeline, auth flow, middleware](specs/architecture.md) |
 | **Contributing** | [Build & test, CI, adding a new language](specs/contributing.md) |

@@ -31,6 +31,7 @@ from botas.core_activity import (
     TeamsChannelAccount,
 )
 from botas.i_turn_middleware import ITurnMiddleware, TurnMiddleware
+from botas.meter_provider import get_metrics
 from botas.remove_mention_middleware import RemoveMentionMiddleware
 from botas.suggested_actions import CardAction, SuggestedActions
 from botas.teams_activity import (
@@ -45,6 +46,7 @@ from botas.teams_activity import (
     TenantInfo,
 )
 from botas.token_manager import BotApplicationOptions, TokenManager
+from botas.tracer_provider import get_tracer
 from botas.turn_context import TurnContext
 
 __all__ = [
@@ -80,6 +82,8 @@ __all__ = [
     "TenantInfo",
     "TokenManager",
     "TurnContext",
+    "get_metrics",
+    "get_tracer",
     "__version__",
     "validate_bot_token",
 ]

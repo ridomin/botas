@@ -165,3 +165,33 @@
 - **Changes:** Promoted `DispatchToHandler` from `private` to `internal` for testability (leveraging existing `InternalsVisibleTo`)
 - **Added 3 tests** in `CaseInsensitiveHandlerTests.cs`: uppercase→lowercase match, lowercase→mixed-case match, same-key replacement across casings
 - **Key learning:** Always check existing code before assuming a bug — sometimes the fix is just adding test coverage to lock down correct behavior
+l
+### OTel Foundation — BotActivitySource (2025-07-17)
+- **Task:** PR 1 of 6 for observability spec. Created `BotActivitySource.cs` — a static class providing a shared `System.Diagnostics.ActivitySource` named `"botas"`.
+- **Key design:** `ActivitySource` is built into .NET — no NuGet packages needed. Uses `internal static readonly` with lazy initialization via the static field initializer. Version comes from assembly metadata.
+- **Tests:** 4 tests in `BotActivitySourceTests.cs` — source not null, name is "botas", StartActivity returns null without listener (no-op), StartActivity returns Activity with `ActivityListener` configured.
+- **Result:** All 101 tests pass. Build clean. No modifications to existing files.
+- **Key learning:** `System.Diagnostics.ActivitySource` is the .NET-native OTel API — no extra packages required. `StartActivity()` returns null when no listener is subscribed, providing zero-overhead no-op behavior.
+
+### Auth & ConversationClient Spans — PR 3+4 (2025-07-17)
+- **Task:** Combined PR 3 (auth spans) and PR 4 (ConversationClient span) from the observability spec.
+- **`botas.auth.outbound` span** added in `BotAuthenticationHandler.SendAsync()` wrapping token acquisition and base send. Tags: `auth.scope`, `auth.flow` ("client_credentials"), `auth.cache_hit` (defaults to `false` — Microsoft.Identity.Web doesn't expose cache-hit info). Error status set on exceptions.
+- **`botas.conversation_client` span** added in `ConversationClient.SendActivityAsync()` after `ValidateServiceUrl` (SSRF check stays outside the span). Tags: `conversation.id`, `activity.type`, `service.url`. Error status set on failures using `when` filter pattern to avoid swallowing exceptions.
+- **Inbound auth (`botas.auth.inbound`):** Not added — ASP.NET Core's built-in auth middleware already emits spans when OTel is configured. Adding a wrapper would duplicate framework telemetry. Documented as .NET intentional difference.
+- **Tests:** 6 new tests in `AuthAndConversationClientSpanTests.cs` — span created with correct attributes (auth outbound + CC), no spans without listener, error status on failure for both.
+- **Result:** All 115 tests pass. Build clean.
+- **Key insight:** The `when` filter pattern (`catch (Exception ex) when (ccActivity is not null)`) is elegant for OTel error recording — it only enters the catch block when the span exists but always rethrows, avoiding adding overhead when no listener is configured.
+
+### PR 5: OTel Setup in .NET EchoBot Sample (2026-07-18)
+- **Task:** Add OpenTelemetry setup to `dotnet/samples/EchoBot/Program.cs` per `specs/observability.md`.
+- **Problem:** `BotApp` encapsulates `WebApplicationBuilder` internally — no way to call `builder.Services.AddOpenTelemetry()` from outside. Added `IServiceCollection Services` property to `BotApp` to expose the service collection.
+- **Packages added:** `OpenTelemetry.Extensions.Hosting`, `OpenTelemetry.Exporter.OpenTelemetryProtocol`, `OpenTelemetry.Exporter.Console` (all 1.12.0) — dev-friendly setup, not Azure Monitor (production concern).
+- **Key pattern:** `app.Services.AddOpenTelemetry().WithTracing(t => t.AddSource("botas").AddOtlpExporter().AddConsoleExporter())` — the `AddSource("botas")` captures botas library spans.
+- **Result:** Build succeeded (0 errors, 2 NU1902 warnings for OTel.Api vulnerability advisory). All 115 tests pass.
+
+### OtelBot Sample & EchoBot Cleanup (2026-04-14)
+- **Task:** Split EchoBot into minimal echo + dedicated OTel sample per Rido's request.
+- **EchoBot stripped:** Removed all OpenTelemetry packages and code. Now a pure 10-line minimal bot sample — ideal for getting-started docs.
+- **OtelBot created:** New `dotnet/samples/OtelBot/` with Program.cs, OtelBot.csproj, and README.md. Demonstrates `AddSource("botas")`, OTLP + console exporters, with comments for Aspire Dashboard and Azure Monitor.
+- **Solution updated:** Added OtelBot.csproj to `dotnet/Botas.slnx`.
+- **Key insight:** Samples should be single-concern. EchoBot = minimal hello-world; OtelBot = observability showcase.

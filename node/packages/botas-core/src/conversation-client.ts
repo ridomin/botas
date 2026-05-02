@@ -3,6 +3,8 @@
 
 import { _BotHttpClient, type TokenProvider } from './bot-http-client.js'
 import { getLogger } from './logger.js'
+import { getTracer } from './tracer-provider.js'
+import { getMetrics } from './meter-provider.js'
 import type {
   CoreActivity,
   ChannelAccount,
@@ -46,14 +48,33 @@ export class ConversationClient {
     conversationId: string,
     activity: Partial<CoreActivity>
   ): Promise<ResourceResponse | undefined> {
-    const endpoint = `/v3/conversations/${encodeConversationId(conversationId)}/activities`
-    getLogger().trace('Sending activity to %s%s', serviceUrl, endpoint)
-    return this.http.post<ResourceResponse>(
-      serviceUrl,
-      endpoint,
-      activity,
-      { operationDescription: 'send activity' }
-    )
+    const tracer = getTracer()
+    const ccSpan = tracer?.startSpan('botas.conversation_client')
+    ccSpan?.setAttribute('conversation.id', conversationId)
+    ccSpan?.setAttribute('activity.type', (activity as CoreActivity).type ?? '')
+    ccSpan?.setAttribute('service.url', serviceUrl)
+
+    const metrics = getMetrics()
+    metrics?.outboundApiCalls.add(1, { operation: 'sendActivity' })
+
+    try {
+      const endpoint = `/v3/conversations/${encodeConversationId(conversationId)}/activities`
+      getLogger().trace('Sending activity to %s%s', serviceUrl, endpoint)
+      const result = await this.http.post<ResourceResponse>(
+        serviceUrl,
+        endpoint,
+        activity,
+        { operationDescription: 'send activity' }
+      )
+      ccSpan?.setAttribute('activity.id', result?.id ?? '')
+      return result
+    } catch (err) {
+      ccSpan?.recordException(err instanceof Error ? err : new Error(String(err)))
+      metrics?.outboundApiErrors.add(1, { operation: 'sendActivity' })
+      throw err
+    } finally {
+      ccSpan?.end()
+    }
   }
 
   /**
@@ -71,14 +92,21 @@ export class ConversationClient {
     activityId: string,
     activity: Partial<CoreActivity>
   ): Promise<ResourceResponse | undefined> {
+    const metrics = getMetrics()
+    metrics?.outboundApiCalls.add(1, { operation: 'updateActivity' })
     const endpoint = `/v3/conversations/${encodeConversationId(conversationId)}/activities/${activityId}`
     getLogger().trace('Updating activity at %s%s', serviceUrl, endpoint)
-    return this.http.put<ResourceResponse>(
-      serviceUrl,
-      endpoint,
-      activity,
-      { operationDescription: 'update activity' }
-    )
+    try {
+      return await this.http.put<ResourceResponse>(
+        serviceUrl,
+        endpoint,
+        activity,
+        { operationDescription: 'update activity' }
+      )
+    } catch (err) {
+      metrics?.outboundApiErrors.add(1, { operation: 'updateActivity' })
+      throw err
+    }
   }
 
   /**
@@ -93,14 +121,21 @@ export class ConversationClient {
     conversationId: string,
     activityId: string
   ): Promise<void> {
+    const metrics = getMetrics()
+    metrics?.outboundApiCalls.add(1, { operation: 'deleteActivity' })
     const endpoint = `/v3/conversations/${encodeConversationId(conversationId)}/activities/${activityId}`
     getLogger().trace('Deleting activity at %s%s', serviceUrl, endpoint)
-    await this.http.delete(
-      serviceUrl,
-      endpoint,
-      undefined,
-      { operationDescription: 'delete activity' }
-    )
+    try {
+      await this.http.delete(
+        serviceUrl,
+        endpoint,
+        undefined,
+        { operationDescription: 'delete activity' }
+      )
+    } catch (err) {
+      metrics?.outboundApiErrors.add(1, { operation: 'deleteActivity' })
+      throw err
+    }
   }
 
   /**

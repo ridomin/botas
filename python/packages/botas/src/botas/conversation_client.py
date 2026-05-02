@@ -22,6 +22,8 @@ from botas.core_activity import (
     _PagedMembersResult,
     _Transcript,
 )
+from botas.meter_provider import get_metrics
+from botas.tracer_provider import get_tracer
 
 
 def _encode_conversation_id(conversation_id: str) -> str:
@@ -76,6 +78,41 @@ class ConversationClient:
         Returns:
             A :class:`ResourceResponse` with the new activity ID, or ``None``.
         """
+        tracer = get_tracer()
+        metrics = get_metrics()
+        if metrics:
+            metrics.outbound_calls.add(1, {"operation": "sendActivity"})
+        if tracer:
+            with tracer.start_as_current_span("botas.conversation_client") as span:
+                span.set_attribute("conversation.id", conversation_id)
+                span.set_attribute("activity.type", getattr(activity, "type", "") or "")
+                span.set_attribute("service.url", service_url)
+                try:
+                    result = await self._do_send(service_url, conversation_id, activity)
+                    if result:
+                        span.set_attribute("activity.id", result.id or "")
+                    return result
+                except Exception:
+                    if metrics:
+                        metrics.outbound_errors.add(1, {"operation": "sendActivity"})
+                    raise
+        try:
+            return await self._do_send(service_url, conversation_id, activity)
+        except Exception:
+            if metrics:
+                metrics.outbound_errors.add(1, {"operation": "sendActivity"})
+            raise
+
+    async def _do_send(
+        self,
+        service_url: str,
+        conversation_id: str,
+        activity: Union[
+            CoreActivity,
+            dict[str, Any],
+        ],
+    ) -> Optional[ResourceResponse]:
+        """Execute the actual HTTP POST for sending an activity."""
         endpoint = f"/v3/conversations/{_encode_conversation_id(conversation_id)}/activities"
         data = await self._http.post(
             service_url,
@@ -106,14 +143,24 @@ class ConversationClient:
         Returns:
             A :class:`ResourceResponse`, or ``None``.
         """
-        endpoint = f"/v3/conversations/{_encode_conversation_id(conversation_id)}/activities/{_encode_id(activity_id)}"
-        data = await self._http.put(
-            service_url,
-            endpoint,
-            _serialize(activity),
-            _BotRequestOptions(operation_description="update activity"),
-        )
-        return ResourceResponse.model_validate(data) if data else None
+        metrics = get_metrics()
+        if metrics:
+            metrics.outbound_calls.add(1, {"operation": "updateActivity"})
+        try:
+            endpoint = (
+                f"/v3/conversations/{_encode_conversation_id(conversation_id)}/activities/{_encode_id(activity_id)}"
+            )
+            data = await self._http.put(
+                service_url,
+                endpoint,
+                _serialize(activity),
+                _BotRequestOptions(operation_description="update activity"),
+            )
+            return ResourceResponse.model_validate(data) if data else None
+        except Exception:
+            if metrics:
+                metrics.outbound_errors.add(1, {"operation": "updateActivity"})
+            raise
 
     async def delete_activity_async(self, service_url: str, conversation_id: str, activity_id: str) -> None:
         """Delete an activity from a conversation.
@@ -123,12 +170,22 @@ class ConversationClient:
             conversation_id: Conversation containing the activity.
             activity_id: ID of the activity to delete.
         """
-        endpoint = f"/v3/conversations/{_encode_conversation_id(conversation_id)}/activities/{_encode_id(activity_id)}"
-        await self._http.delete(
-            service_url,
-            endpoint,
-            _BotRequestOptions(operation_description="delete activity"),
-        )
+        metrics = get_metrics()
+        if metrics:
+            metrics.outbound_calls.add(1, {"operation": "deleteActivity"})
+        try:
+            endpoint = (
+                f"/v3/conversations/{_encode_conversation_id(conversation_id)}/activities/{_encode_id(activity_id)}"
+            )
+            await self._http.delete(
+                service_url,
+                endpoint,
+                _BotRequestOptions(operation_description="delete activity"),
+            )
+        except Exception:
+            if metrics:
+                metrics.outbound_errors.add(1, {"operation": "deleteActivity"})
+            raise
 
     async def get_conversation_members_async(self, service_url: str, conversation_id: str) -> list[ChannelAccount]:
         """Retrieve all members of a conversation.

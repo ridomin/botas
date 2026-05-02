@@ -3,18 +3,39 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
+from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable, Optional, Union
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Generator, Optional, Union
 from urllib.parse import urlparse
+
+if TYPE_CHECKING:
+    from opentelemetry.trace import Span
 
 from botas.conversation_client import ConversationClient
 from botas.core_activity import CoreActivity, ResourceResponse
 from botas.i_turn_middleware import TurnMiddleware
+from botas.meter_provider import get_metrics
 from botas.token_manager import BotApplicationOptions, TokenManager
+from botas.tracer_provider import get_tracer
 from botas.turn_context import TurnContext
 
 _ActivityHandler = Callable[[TurnContext], Awaitable[None]]
 """Type alias for an async activity handler: ``async def handler(ctx: TurnContext) -> None``."""
+
+
+@contextmanager
+def _span(name: str, **attributes: str | int) -> Generator[Span | None, None, None]:
+    """Start an OTel span if a tracer is available, otherwise no-op."""
+    tracer = get_tracer()
+    if tracer:
+        with tracer.start_as_current_span(name) as span:
+            for k, v in attributes.items():
+                span.set_attribute(k, v)
+            yield span
+    else:
+        yield None
+
 
 _ALLOWED_SERVICE_URL_PATTERNS = [
     re.compile(r"^https://[^/]*\.botframework\.com(/|$)", re.IGNORECASE),
@@ -242,7 +263,28 @@ class BotApplication:
             raise ValueError("Invalid JSON in request body") from exc
         _assert_activity(activity)
         _validate_service_url(activity.service_url)
-        return await self._run_pipeline(activity)
+
+        metrics = get_metrics()
+        if metrics:
+            metrics.activities_received.add(1, {"activity.type": activity.type or ""})
+        start_time = time.perf_counter()
+
+        with _span(
+            "botas.turn",
+            **{
+                "activity.type": activity.type or "",
+                "activity.id": activity.id or "",
+                "conversation.id": activity.conversation.id if activity.conversation else "",
+                "channel.id": activity.channel_id or "",
+                "bot.id": self._token_manager.client_id or "",
+            },
+        ):
+            try:
+                return await self._run_pipeline(activity)
+            finally:
+                if metrics:
+                    elapsed_ms = (time.perf_counter() - start_time) * 1000
+                    metrics.turn_duration.record(elapsed_ms, {"activity.type": activity.type or ""})
 
     async def send_activity_async(
         self,
@@ -291,14 +333,22 @@ class BotApplication:
         handler = self.on_activity or self._handlers.get(context.activity.type.lower())
         if handler is None:
             return None
-        try:
-            await handler(context)
-        except Exception as exc:
-            raise BotHandlerException(
-                f'Handler for "{context.activity.type}" threw an error',
-                exc,
-                context.activity,
-            ) from exc
+        dispatch_mode = "on_activity" if self.on_activity else "typed"
+        with _span(
+            "botas.handler",
+            **{"handler.type": context.activity.type, "handler.dispatch": dispatch_mode},
+        ):
+            try:
+                await handler(context)
+            except Exception as exc:
+                metrics = get_metrics()
+                if metrics:
+                    metrics.handler_errors.add(1, {"activity.type": context.activity.type})
+                raise BotHandlerException(
+                    f'Handler for "{context.activity.type}" threw an error',
+                    exc,
+                    context.activity,
+                ) from exc
         return None
 
     async def _dispatch_invoke_async(self, context: TurnContext) -> InvokeResponse:
@@ -308,14 +358,21 @@ class BotApplication:
         handler = self._invoke_handlers.get(name.lower()) if name else None
         if handler is None:
             return InvokeResponse(status=501)
-        try:
-            return await handler(context)
-        except Exception as exc:
-            raise BotHandlerException(
-                f'Invoke handler for "{name}" threw an error',
-                exc,
-                context.activity,
-            ) from exc
+        with _span(
+            "botas.handler",
+            **{"handler.type": "invoke", "handler.dispatch": "invoke"},
+        ):
+            try:
+                return await handler(context)
+            except Exception as exc:
+                metrics = get_metrics()
+                if metrics:
+                    metrics.handler_errors.add(1, {"activity.type": "invoke"})
+                raise BotHandlerException(
+                    f'Invoke handler for "{name}" threw an error',
+                    exc,
+                    context.activity,
+                ) from exc
 
     async def _run_pipeline(self, activity: CoreActivity) -> Optional[InvokeResponse]:
         context = TurnContext(self, activity)
@@ -326,8 +383,21 @@ class BotApplication:
             nonlocal index, invoke_response
             if index < len(self._middlewares):
                 mw = self._middlewares[index]
+                mw_index = index
                 index += 1
-                await mw.on_turn(context, next_fn)
+                mw_name = type(mw).__name__
+                mw_start = time.perf_counter()
+                with _span(
+                    "botas.middleware",
+                    **{"middleware.name": mw_name, "middleware.index": mw_index},
+                ):
+                    try:
+                        await mw.on_turn(context, next_fn)
+                    finally:
+                        metrics = get_metrics()
+                        if metrics:
+                            elapsed_ms = (time.perf_counter() - mw_start) * 1000
+                            metrics.middleware_duration.record(elapsed_ms, {"middleware.name": mw_name})
             else:
                 invoke_response = await self._handle_activity_async(context)
 

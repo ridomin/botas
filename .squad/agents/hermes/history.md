@@ -48,6 +48,11 @@
 - Pydantic v2 `extra="allow"` enables flexible schema handling without breaking validation
 - Async context managers critical for resource cleanup in long-running servers
 - Extra fields on CoreActivity (membersAdded, reactionsAdded, action) use original JSON camelCase keys via Pydantic extra="allow"; access with `getattr(activity, "membersAdded", None)` — they're raw dicts/lists, not typed models
+- OTel spans use `get_tracer()` from `tracer_provider.py` with if/else pattern: span-wrapped path when tracer exists, direct call otherwise. Extract `_do_*` helper methods to avoid duplicating business logic.
+- Inbound auth span attributes (`auth.issuer`, `auth.audience`, `auth.key_id`) must be set from peeked claims before full validation, since validation may raise before claims are accessible.
+- `_validate_token` was extracted as a separate async function to keep `validate_bot_token` clean and allow span to wrap the full validation lifecycle.
+- OTel tracer provider uses lazy init with try/except ImportError — `get_tracer()` returns None when opentelemetry-api is absent, so the library never crashes without telemetry deps
+- opentelemetry-api is an optional dep under `[observability]` extras; also included in `[dev]` for test coverage
 
 ### Specs Overhaul — Python Reference Doc (Issue #259) (2026-04-24)
 - **Fixed specs/reference/python.md to match actual implementation:**
@@ -130,3 +135,17 @@
 - **Branch:** fix/input-validation-400-260
 - **All tests pass; ruff clean.**
 
+
+### OTel Setup in Python Echo-Bot Sample — PR #5 (2026-04-25)
+- Added `microsoft-opentelemetry` distro setup to `python/samples/echo-bot/main.py` at top of file, before any botas imports per spec requirement.
+- Wrapped in `try/except ImportError` so bot still works without OTel packages installed.
+- Added `[project.optional-dependencies] otel` to `pyproject.toml` with `microsoft-opentelemetry`.
+- Comments explain: why OTel must come first, env var config, Aspire Dashboard docker command, Azure Monitor for production.
+- Follows `specs/observability.md` Python setup pattern using `use_microsoft_opentelemetry()` single-call distro API.
+- **Ruff clean; syntax verified.**
+
+### OTel Sample Extraction — Dedicated otel-bot (2026-07-25)
+- **Stripped OTel from echo-bot:** Removed the entire OTel try/except block and comments from `python/samples/echo-bot/main.py` (now 14 lines, truly minimal). Removed `[project.optional-dependencies] otel` from echo-bot's `pyproject.toml`.
+- **Created `python/samples/otel-bot/`:** New dedicated sample with `main.py` (OTel setup + echo handler), `pyproject.toml` (microsoft-opentelemetry as hard dep), and `README.md` (install, Aspire Dashboard, Azure Monitor).
+- **Key difference from echo-bot OTel:** In otel-bot, the ImportError raises instead of silently passing — this sample *requires* OTel.
+- **Ruff clean; all formatting verified.**

@@ -119,3 +119,42 @@
 - All 119 core + 12 express tests pass
 - **Branch:** `fix/input-validation-400-260` — Fixes #260
 
+### OTel Setup in Echo-Bot Sample (2026-07-14)
+- **Added OpenTelemetry setup to `node/samples/echo-bot/`** following `specs/observability.md` Node.js pattern
+- Created `otel-setup.ts` — calls `useMicrosoftOpenTelemetry()` from `@microsoft/opentelemetry` distro with HTTP + Azure SDK auto-instrumentation
+- `index.ts` imports `./otel-setup.js` at the very top before any botas imports (spec requires OTel init before other modules)
+- Added `@microsoft/opentelemetry` dependency to echo-bot `package.json`
+- Export targets configured via env vars: `OTEL_EXPORTER_OTLP_ENDPOINT` (Aspire Dashboard), `APPLICATIONINSIGHTS_CONNECTION_STRING` (Azure Monitor), defaults to Console
+- Comments include Aspire Dashboard docker command for local dev
+- Additive change — bot still works without any OTel infrastructure (SDK handles missing exporters gracefully)
+- Node workspace build passes clean
+- **Branch:** `feat/observability-spec`
+
+### OTel Tracer Provider Foundation (PR 1 of 6)
+- **Added `@opentelemetry/api`** as optional peer dependency (`^1.0.0`) + dev dependency for testing
+- **Created `tracer-provider.ts`** with `getTracer()` — lazy, synchronous init using `createRequire` pattern (matches bot-application.ts)
+- Tracer name is `"botas"` with version from package.json (cross-language parity)
+- Returns `null` when `@opentelemetry/api` is not installed — zero runtime impact without telemetry
+- Uses three-state cache: `undefined` (not init), `Tracer` (available), `null` (not available)
+- Exported from `index.ts`, 2 tests added (init + caching), all 129 core + 12 express tests pass
+- **Branch:** `feat/node-otel-tracer-provider`
+
+### Auth & ConversationClient OTel Spans (PR 3+4 combined)
+- **Added `botas.auth.outbound` span** in `token-manager.ts` around `getToken()` — attributes: `auth.scope`, `auth.flow`, `auth.token_endpoint`, `auth.cache_hit`
+- **`auth.flow` detection**: `custom_factory` (token callback), `client_credentials` (clientSecret), `federated_identity` (managedIdentityClientId ≠ clientId), `managed_identity` (fallback)
+- **Added `botas.auth.inbound` span** in `bot-auth-middleware.ts` around JWT validation — attributes: `auth.issuer`, `auth.audience`, `auth.key_id`
+- Span starts after rate-limit/header checks (no span for trivially rejected requests)
+- Uses `decodeProtectedHeader` from `jose` to extract `kid` for `auth.key_id`
+- **Added `botas.conversation_client` span** in `conversation-client.ts` around `sendCoreActivityAsync` — attributes: `conversation.id`, `activity.type`, `service.url`, `activity.id`
+- All three span types: record exception on error, always end in `finally` block
+- 9 new tests in `otel-auth-cc.spec.ts` covering all three span types, error paths, and no-op paths
+- All 145 tests pass (105 core + 40 remaining), build clean
+- **Branch:** `feat/observability-spec`
+
+### OTel Sample Extraction (2026-07-17)
+- **Extracted OTel from echo-bot into dedicated `node/samples/otel-bot/` sample**
+- echo-bot is now minimal again: no OTel import, no `otel-setup.ts`, no `@microsoft/opentelemetry` dep
+- otel-bot has: `otel-setup.ts` (moved), `index.ts` (echo + OTel), `package.json`, `README.md`
+- README covers Aspire Dashboard local setup, Azure Monitor production config, links to docs
+- Keeps echo-bot as the "hello world" and otel-bot as the dedicated observability demo
+
