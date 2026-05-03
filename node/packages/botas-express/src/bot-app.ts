@@ -133,7 +133,7 @@ export class BotApp {
     })
 
     const server = app.listen(port, () => {
-      getLogger().info('BotApp listening on http://localhost:%d%s', port, path)
+      getLogger().info(`BotApp listening on http://localhost:${port}${path}`)
     })
 
     return server

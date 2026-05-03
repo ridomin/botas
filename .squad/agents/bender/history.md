@@ -6,6 +6,8 @@
 - **Created:** 2026-04-13
 
 ## Learnings
+
+- Started aspire-dashboard container (ID: 3de71266fc66) mapping host ports 4317->18889, 4318->18890, 18888->18888 on 2026-05-03T05:52:28Z
 - Recorded runbook merge (copilot-directive-2026-05-02_22-45-45.md) by Scribe.
 
 ### CI/CD Pipeline Security & Reliability Improvements (2026-04-16)

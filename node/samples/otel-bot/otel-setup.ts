@@ -12,6 +12,19 @@
 //   docker run -p 4317:4317 -p 18888:18888 mcr.microsoft.com/dotnet/aspire-dashboard:latest
 //   OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317 OTEL_SERVICE_NAME=otel-bot npx tsx index.ts
 
+import { diag } from '@opentelemetry/api'
+
+// Suppress diag "logger will be overwritten" warnings from the Microsoft distro.
+// The distro's NodeSDK calls diag.setLogger() which warns when overwriting.
+// We monkey-patch setLogger to always suppress the override message.
+const originalSetLogger = diag.setLogger.bind(diag)
+diag.setLogger = (logger, optionsOrLogLevel) => {
+  if (typeof optionsOrLogLevel === 'number') {
+    return originalSetLogger(logger, { logLevel: optionsOrLogLevel, suppressOverrideMessage: true })
+  }
+  return originalSetLogger(logger, { ...optionsOrLogLevel, suppressOverrideMessage: true })
+}
+
 import { useMicrosoftOpenTelemetry } from '@microsoft/opentelemetry'
 
 // Ensure OTEL resource contains service.name so exporters (Aspire) display the expected resource.

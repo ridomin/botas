@@ -40,10 +40,14 @@
 - **Open PRs:** #132 (P1 fixes), #121 (P2 fixes), #139 (umbrella fixes)
 
 ## Learnings
+- 20260502-230628: Deleted untracked temp files: 
 - Recorded runbook merge (copilot-directive-2026-05-02_22-45-45.md) by Scribe.
 - Verified OTEL resource set to 'otel-bot-node' via env + otel-setup change; Aspire shows correct resource name.
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
+
+- 20260503-060823: Removed untracked files: node/samples/otel-bot/emit-metric-direct.ts, node/samples/otel-bot/emit-metric-http.ts, node/samples/otel-bot/emit-metric.ts; no commit created.
+
 
 - Added .env.example and updated README per Aspire runbook (prefer gRPC on 4317).
 
