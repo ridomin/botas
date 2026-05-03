@@ -6,6 +6,7 @@
 - **Created:** 2026-04-13
 
 ## Learnings
+- Recorded runbook merge (copilot-directive-2026-05-02_22-45-45.md) by Scribe.
 
 ### CI/CD Pipeline Security & Reliability Improvements (2026-04-16)
 

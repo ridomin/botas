@@ -40,6 +40,7 @@
 - **Open PRs:** #132 (P1 fixes), #121 (P2 fixes), #139 (umbrella fixes)
 
 ## Learnings
+- Recorded runbook merge (copilot-directive-2026-05-02_22-45-45.md) by Scribe.
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
@@ -157,4 +158,11 @@
 - otel-bot has: `otel-setup.ts` (moved), `index.ts` (echo + OTel), `package.json`, `README.md`
 - README covers Aspire Dashboard local setup, Azure Monitor production config, links to docs
 - Keeps echo-bot as the "hello world" and otel-bot as the dedicated observability demo
+
+## Learnings
+
+- Aspire Dashboard container maps internal OTLP ports (18889/18890) — map them to host ports explicitly (e.g., -p 4317:18889 -p 4318:18890) when running the image.
+- Microsoft OpenTelemetry distro auto-configures exporters from OTEL env vars, but custom meters may need explicit metric reader or registration; direct OTLP metric exporters (OTLP gRPC/HTTP) work for testing.
+- For local testing with Aspire: use OTLP gRPC on host:4317 (map to container's 18889) or OTLP HTTP on host:4318 (map to container's 18890). The distro may require per-signal env vars (OTEL_EXPORTER_OTLP_METRICS_ENDPOINT) for metrics.
+- Created direct exporter test scripts (`emit-metric-direct.ts`, `emit-metric-http.ts`) to validate connectivity; these confirm Aspire is reachable and accepts OTLP over gRPC and HTTP when ports are mapped correctly.
 
