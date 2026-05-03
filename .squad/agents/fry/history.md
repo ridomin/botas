@@ -41,6 +41,7 @@
 
 ## Learnings
 - Recorded runbook merge (copilot-directive-2026-05-02_22-45-45.md) by Scribe.
+- Verified OTEL resource set to 'otel-bot-node' via env + otel-setup change; Aspire shows correct resource name.
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
@@ -168,3 +169,4 @@
 - For local testing with Aspire: use OTLP gRPC on host:4317 (map to container's 18889) or OTLP HTTP on host:4318 (map to container's 18890). The distro may require per-signal env vars (OTEL_EXPORTER_OTLP_METRICS_ENDPOINT) for metrics.
 - Created direct exporter test scripts (`emit-metric-direct.ts`, `emit-metric-http.ts`) to validate connectivity; these confirm Aspire is reachable and accepts OTLP over gRPC and HTTP when ports are mapped correctly.
 
+- Verified metrics export to Aspire (gRPC on 4317)

@@ -14,7 +14,12 @@
 
 import { useMicrosoftOpenTelemetry } from '@microsoft/opentelemetry'
 
+// Ensure OTEL resource contains service.name so exporters (Aspire) display the expected resource.
+// Prefer explicit environment variable if provided; otherwise derive from OTEL_SERVICE_NAME fallback.
+process.env.OTEL_RESOURCE_ATTRIBUTES = process.env.OTEL_RESOURCE_ATTRIBUTES ?? `service.name=${process.env.OTEL_SERVICE_NAME || 'otel-bot-node'}`
+
 useMicrosoftOpenTelemetry({
+  enableConsoleExporters: true,
   instrumentationOptions: {
     http: {
       enabled: true,
