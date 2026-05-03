@@ -15,13 +15,16 @@ npx tsx index.ts
 Run the [Aspire Dashboard](https://learn.microsoft.com/dotnet/aspire/fundamentals/dashboard/standalone) locally:
 
 ```bash
-docker run -p 4317:4317 -p 18888:18888 mcr.microsoft.com/dotnet/aspire-dashboard:latest
+docker run --rm -d --name aspire-dashboard -p 4317:18889 -p 4318:18890 -p 18888:18888 mcr.microsoft.com/dotnet/aspire-dashboard:latest
 ```
 
 Then start the bot with OTLP export:
 
 ```bash
-OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317 OTEL_SERVICE_NAME=otel-bot npx tsx index.ts
+# Copy the example env to .env (the .env file is ignored and must NOT be committed)
+# cp .env.example .env
+# Start the bot using the .env file
+npx tsx --env-file ../../.env index.ts
 ```
 
 Open <http://localhost:18888> to view traces, logs, and metrics.

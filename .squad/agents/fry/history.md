@@ -44,6 +44,8 @@
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
+- Added .env.example and updated README per Aspire runbook (prefer gRPC on 4317).
+
 - Middleware can mutate activity properties even via readonly context reference
 - CatchAll onActivity handler bypasses per-type dispatch entirely with clean fallback pattern
 - Promise deduplication prevents concurrent Azure AD token acquisition races
